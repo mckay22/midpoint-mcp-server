@@ -184,9 +184,12 @@ Reporting (**implemented**, read-only):
 - `search_objects` — filtered search across users/roles/orgs/services/shadows/
   resources with a midPoint query-language filter (ad-hoc reports: orphaned
   accounts, unused roles, ...)
-- `search_audit` — audit-trail queries. **Experimental:** midPoint 4.10 has no
-  REST audit endpoint, so this uses a server-side script and needs
-  script-execution authorization (and does not work under OIDC impersonation)
+- `search_audit` — audit-trail queries (time range + initiator / target / event
+  type / outcome / channel). midPoint 4.10 has no REST audit endpoint, so this
+  runs a server-side script that reaches the audit service and returns the
+  records. It therefore needs script-execution authorization and does **not** work
+  under OIDC impersonation (the mapped end user lacks that privilege) — use it in
+  personal/service-account mode
 
 ## Design
 

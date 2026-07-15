@@ -20,8 +20,10 @@ func mockMidpointReporting(t *testing.T) *httptest.Server {
 	})
 	mux.HandleFunc("POST /ws/rest/rpc/executeScript", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		console := "AUDITREC\t2026-07-01T10:00:00Z\tmodifyObject\texecution\tsuccess\tc\tadministrator\tJane\tmodified\n"
-		_, _ = io.WriteString(w, `{"object":{"output":{"consoleOutput":`+jsonString(console)+`,"dataOutput":{"item":[]}},"result":{"status":"success"}}}`)
+		// The audit script returns each record as a tab-delimited xsd:string
+		// data-output item (not console output).
+		rec := "2026-07-01T10:00:00Z\tmodifyObject\texecution\tsuccess\tc\tadministrator\tJane\tmodified"
+		_, _ = io.WriteString(w, `{"object":{"output":{"consoleOutput":"","dataOutput":{"item":[{"value":{"@type":"xsd:string","@value":`+jsonString(rec)+`}}]}},"result":{"status":"success"}}}`)
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

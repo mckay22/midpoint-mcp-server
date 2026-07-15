@@ -11,10 +11,6 @@ import (
 // scriptingNS is midPoint's bulk-action / scripting namespace.
 const scriptingNS = "http://midpoint.evolveum.com/xml/ns/public/model/scripting-3"
 
-// wellKnownSystemConfigOID always exists; it seeds the pipeline so the execute
-// action runs exactly once.
-const wellKnownSystemConfigOID = "00000000-0000-0000-0000-000000000001"
-
 // ScriptOutput is the parsed result of an executeScript call.
 type ScriptOutput struct {
 	ConsoleOutput string
@@ -92,101 +88,108 @@ type AuditRecord struct {
 	Message    string `json:"message,omitempty"`
 }
 
-// AuditResult is what SearchAudit returns: the parsed records plus the raw
-// script status/console, which callers surface for diagnosis since this path is
-// experimental (see SearchAudit).
+// AuditResult is what SearchAudit returns: the parsed records plus the script's
+// overall status.
 type AuditResult struct {
 	Records []AuditRecord `json:"records"`
 	Status  string        `json:"status,omitempty"`
-	Console string        `json:"console,omitempty"`
 }
 
 // SearchAudit queries the audit trail.
 //
-// EXPERIMENTAL: midPoint 4.10 exposes no REST audit endpoint, so this runs a
-// Groovy script via executeScript that searches audit containers and prints
-// delimited records. It requires script-execution authorization and therefore
-// does NOT work under resource-server (#proxy) impersonation. The embedded
-// script and pipeline are a best-effort against the documented scripting API and
-// may need tuning for a specific midPoint version; the raw console output is
-// returned to aid that.
+// midPoint 4.10 exposes no REST audit endpoint, so this runs a Groovy script via
+// executeScript that reaches the ModelAuditService and returns delimited records
+// as script data output. Because it uses the execute-script action, it requires
+// script-execution authorization and therefore does NOT work under
+// resource-server (#proxy) impersonation, where the mapped end user lacks that
+// privilege. The script reflects a non-public field (modelAuditService) because
+// the scripting binding exposes no audit accessor; that internal path is the only
+// one available in 4.10 and may need revisiting on a future midPoint.
 func (c *Client) SearchAudit(ctx context.Context, q AuditQuery) (AuditResult, error) {
 	out, err := c.ExecuteScript(ctx, auditScriptBody(buildAuditGroovy(q)))
 	if err != nil {
 		return AuditResult{}, err
 	}
-	records := refineAudit(parseAuditConsole(out.ConsoleOutput), q)
-	return AuditResult{Records: records, Status: out.Status, Console: out.ConsoleOutput}, nil
+	records := refineAudit(parseAuditItems(out.Items), q)
+	return AuditResult{Records: records, Status: out.Status}, nil
 }
 
-// auditScriptBody wraps a Groovy body in a pipeline seeded by the system
-// configuration object (so execute runs once).
+// auditScriptBody wraps a Groovy body in a two-step pipeline: a typed search that
+// yields the single SystemConfigurationType object (so the following action has
+// exactly one input item and runs once), then an execute-script action.
+//
+// midPoint 4.10 rejects the generic dynamic "search"/"execute" actions
+// ("cannot be invoked dynamically" / "unknown action executor"); the search must
+// be the typed <search> element and the script action must be "execute-script".
 func auditScriptBody(groovy string) map[string]any {
 	return map[string]any{
 		"@ns": scriptingNS,
 		"executeScript": map[string]any{
 			"pipeline": []any{
+				map[string]any{"@element": "search", "type": "SystemConfigurationType"},
 				map[string]any{
 					"@element":  "action",
-					"type":      "search",
-					"parameter": []any{map[string]any{"name": "type", "value": "SystemConfigurationType"}},
-				},
-				map[string]any{
-					"@element":  "action",
-					"type":      "execute",
+					"type":      "execute-script",
 					"parameter": []any{map[string]any{"name": "script", "value": map[string]any{"code": groovy}}},
 				},
 			},
-			"options": map[string]any{"continueOnAnyError": "true"},
 		},
 	}
 }
 
-// auditLinePrefix marks a record line in the script console output.
-const auditLinePrefix = "AUDITREC\t"
-
 // buildAuditGroovy renders the audit-search script. Timestamp bounds are applied
-// server-side; other filters are applied by refineAudit on the results.
+// server-side; the remaining filters are applied by refineAudit on the results.
+// Each record is returned as one tab-delimited string (tabs/newlines in values
+// are flattened to spaces first), which midPoint surfaces as a data-output item.
 func buildAuditGroovy(q AuditQuery) string {
 	var filter strings.Builder
 	if !q.From.IsZero() {
-		fmt.Fprintf(&filter, ".item(AuditEventRecordType.F_TIMESTAMP).ge(XmlTypeConverter.createXMLGregorianCalendar('%s'))", q.From.UTC().Format(time.RFC3339))
+		fmt.Fprintf(&filter, ".item(AuditEventRecordType.F_TIMESTAMP).ge(cal('%s'))", q.From.UTC().Format(time.RFC3339))
 	}
 	if !q.To.IsZero() {
-		if !q.From.IsZero() {
+		if filter.Len() > 0 {
 			filter.WriteString(".and()")
 		}
-		fmt.Fprintf(&filter, ".item(AuditEventRecordType.F_TIMESTAMP).le(XmlTypeConverter.createXMLGregorianCalendar('%s'))", q.To.UTC().Format(time.RFC3339))
-	}
-	if filter.Len() == 0 {
-		filter.WriteString(".all()")
+		fmt.Fprintf(&filter, ".item(AuditEventRecordType.F_TIMESTAMP).le(cal('%s'))", q.To.UTC().Format(time.RFC3339))
 	}
 
-	// The record line joins fields with tabs; sanitize tabs/newlines in values.
 	return fmt.Sprintf(`import com.evolveum.midpoint.xml.ns._public.common.audit_3.AuditEventRecordType
-import com.evolveum.midpoint.util.XmlTypeConverter
-def query = prismContext.queryFor(AuditEventRecordType.class)%s.maxSize(%d).build()
-def records = midpoint.searchContainers(AuditEventRecordType.class, query, null)
-records.each { r ->
-    def parts = [r.timestamp, r.eventType, r.eventStage, r.outcome, r.channel,
-        (r.initiatorRef ? (r.initiatorRef.targetName ?: r.initiatorRef.oid) : ''),
-        (r.targetRef ? (r.targetRef.targetName ?: r.targetRef.oid) : ''),
-        (r.message ?: '')]
-    log.info('%s' + parts.collect { it == null ? '' : it.toString().replace('\t', ' ').replace('\n', ' ') }.join('\t'))
+import javax.xml.datatype.DatatypeFactory
+def getField
+getField = { obj, name ->
+    def k = obj.getClass()
+    while (k != null) {
+        try { def f = k.getDeclaredField(name); f.setAccessible(true); return f.get(obj) } catch (Throwable t) {}
+        k = k.superclass
+    }
+    return null
 }
-`, filter.String(), clampLimit(q.Limit), auditLinePrefix)
+def auditService = getField(getField(midpoint, 'modelInteractionService'), 'modelAuditService')
+def cal = { s -> DatatypeFactory.newInstance().newXMLGregorianCalendar(s) }
+def query = prismContext.queryFor(AuditEventRecordType.class)%s.desc(AuditEventRecordType.F_TIMESTAMP).maxSize(%d).build()
+def records = auditService.searchObjects(query, null, midpoint.getCurrentTask(), midpoint.getCurrentResult())
+return records.collect { r ->
+    [r.timestamp, r.eventType, r.eventStage, r.outcome, r.channel,
+     (r.initiatorRef ? (r.initiatorRef.targetName ?: r.initiatorRef.oid) : ''),
+     (r.targetRef ? (r.targetRef.targetName ?: r.targetRef.oid) : ''),
+     (r.message ?: '')].collect { it == null ? '' : it.toString().replace('\t', ' ').replace('\n', ' ') }.join('\t')
+}
+`, filter.String(), clampLimit(q.Limit))
 }
 
-// parseAuditConsole extracts record lines emitted by the audit script.
-func parseAuditConsole(console string) []AuditRecord {
+// parseAuditItems decodes the tab-delimited record strings the audit script
+// returns as script data-output items. Each item's value is an xsd:string,
+// serialized by midPoint as {"@type":"xsd:string","@value":"f0\tf1\t..."}.
+func parseAuditItems(items []json.RawMessage) []AuditRecord {
 	var recs []AuditRecord
-	for _, line := range strings.Split(console, "\n") {
-		line = strings.TrimRight(line, "\r")
-		rest, ok := strings.CutPrefix(line, auditLinePrefix)
-		if !ok {
+	for _, raw := range items {
+		var v struct {
+			Value string `json:"@value"`
+		}
+		if err := json.Unmarshal(raw, &v); err != nil || v.Value == "" {
 			continue
 		}
-		f := strings.Split(rest, "\t")
+		f := strings.Split(v.Value, "\t")
 		at := func(i int) string {
 			if i < len(f) {
 				return f[i]

@@ -64,16 +64,16 @@ type searchAuditOutput struct {
 	Count   int                    `json:"count"`
 	Status  string                 `json:"status,omitempty"`
 	Note    string                 `json:"note,omitempty"`
-	Console string                 `json:"console,omitempty"`
 }
 
 func registerSearchAudit(server *mcp.Server, client *midpoint.Client) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:  "search_audit",
 		Title: "Search audit trail",
-		Description: "Query the midPoint audit trail (who changed what, when; logins; approvals). " +
-			"EXPERIMENTAL: midPoint 4.10 has no REST audit endpoint, so this runs a server-side script and " +
-			"requires script-execution authorization; it does not work under resource-server (OIDC) impersonation.",
+		Description: "Query the midPoint audit trail — who changed what and when, logins, approvals — " +
+			"over a time range with optional initiator/target/event-type/outcome/channel filters. " +
+			"midPoint 4.10 has no REST audit endpoint, so this runs a server-side script and needs " +
+			"script-execution authorization; it therefore does not work under resource-server (OIDC) impersonation.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in searchAuditInput) (*mcp.CallToolResult, searchAuditOutput, error) {
 		q := midpoint.AuditQuery{
 			EventType: in.EventType,
@@ -107,17 +107,9 @@ func registerSearchAudit(server *mcp.Server, client *midpoint.Client) {
 		}
 		out := searchAuditOutput{Records: res.Records, Count: len(res.Records), Status: res.Status}
 		if len(res.Records) == 0 {
-			out.Note = "No records parsed. This tool is experimental (audit has no REST endpoint in 4.10); " +
-				"confirm the REST user holds script-execution authorization and check console output."
-			out.Console = truncate(res.Console, 2000)
+			out.Note = "No audit records matched. Widen the time range or relax filters. " +
+				"Note this tool needs script-execution authorization and does not run under OIDC impersonation."
 		}
 		return text(fmt.Sprintf("Found %d audit record(s).", len(res.Records))), out, nil
 	})
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

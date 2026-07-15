@@ -86,13 +86,17 @@ product-neutral (midPoint + MCP only; no downstream deployment stories).
   - `search_objects` — delivered as designed over users/roles/orgs/services/
     shadows/resources (covers "orphaned accounts on resource Y"). Assignments
     are reached via focus filters, not a separate container search.
-  - `search_audit` — delivered **best-effort/experimental** via the
-    `executeScript` RPC (a server-side Groovy that searches audit containers and
-    prints delimited records). It needs script-execution authorization and so
-    does **not** work under resource-server (#proxy) impersonation; the embedded
-    script is isolated and may need per-version tuning (raw console returned to
-    aid that). The executeScript plumbing + parsing are unit-tested; the audit
-    query itself is confirmed only against a live instance.
+  - `search_audit` — delivered via the `executeScript` RPC and **verified live
+    against 4.10.3** (initially 500ed; fixed in Unreleased). The working recipe:
+    a typed `<search>` seed (the generic dynamic `search`/`execute` actions are
+    rejected in 4.10) feeds one input item to an `execute-script` action whose
+    Groovy reaches `ModelAuditService` (via `modelInteractionService`, reflected —
+    no audit accessor is exposed on the scripting binding, and
+    `RepositoryService.searchContainers` rejects `AuditEventRecordType`) and
+    **returns** each record as a tab-delimited data-output item (`log.info` does
+    not reach the response). It still needs script-execution authorization and so
+    does **not** work under resource-server (#proxy) impersonation. Plumbing +
+    parsing are unit-tested; a live integration test asserts records parse.
   - No local read-model built — ephemeral, per the design decision above.
 
 ## Identity model (who is the caller?)

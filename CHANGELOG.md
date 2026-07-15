@@ -6,6 +6,34 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+### Fixed
+
+- **`search_audit` now works against a live midPoint 4.10** (previously HTTP 500,
+  shipped as non-functional/experimental in 0.2.0). Diagnosed end to end against
+  midPoint 4.10.3; three separate defects in the executeScript path:
+  1. The bulk-action names were wrong for 4.10 — the generic dynamic `execute`
+     action is *"unknown action executor"* and the generic `search` *"cannot be
+     invoked dynamically"*. Fixed by using the **typed `<search>`** element to
+     seed one input item and the **`execute-script`** action name.
+  2. Output was read from `consoleOutput`, but `log.info` writes to the server
+     log, not the script console — so records never came back. The script now
+     **returns** each record as a tab-delimited `xsd:string`, which midPoint
+     surfaces as a `dataOutput` item; parsing reads `item.value.@value`.
+  3. There is no audit accessor on the scripting `midpoint` binding and
+     `RepositoryService.searchContainers` rejects `AuditEventRecordType`
+     (*"Missing mapping for schema type"*). The script now reaches
+     `ModelAuditService` (via `modelInteractionService`) and calls
+     `searchObjects(query, null, task, result)`; timestamp bounds use the JDK
+     `DatatypeFactory` (the previously-imported `XmlTypeConverter` is not on the
+     script classpath). **Verified live**: returns real records (e.g.
+     `MODIFY_OBJECT` / `administrator` → `bob`), including server-side time-range
+     filtering. Still requires script-execution authorization, so it remains
+     unavailable under resource-server (OIDC) impersonation — documented, not a
+     regression. Reaching `modelAuditService` uses reflection over a non-public
+     field (the only route 4.10 exposes) and may need revisiting on a future
+     midPoint; a live integration test asserts records parse with populated
+     fields.
+
 ## [0.2.1] - 2026-07-15
 
 ### Fixed

@@ -224,9 +224,11 @@ func TestIntegrationSearchObjects(t *testing.T) {
 	t.Logf("search_objects OK: %d user(s), e.g. %q", len(users), users[0].Name)
 }
 
-// TestIntegrationSearchAudit is best-effort: the audit path is experimental
-// (no REST endpoint; needs script-exec authorization), so it logs rather than
-// fails when the environment can't run it.
+// TestIntegrationSearchAudit exercises the audit search live. It runs an
+// execute-script action, so it needs script-execution authorization (and does
+// not work under OIDC #proxy impersonation); when the environment can't grant
+// that, it skips rather than fails. When records come back, their fields must be
+// populated — that guards the executeScript-response parse path.
 func TestIntegrationSearchAudit(t *testing.T) {
 	cfg, err := ConfigFromEnv()
 	if err != nil {
@@ -238,11 +240,18 @@ func TestIntegrationSearchAudit(t *testing.T) {
 
 	res, err := c.SearchAudit(ctx, AuditQuery{Limit: 5})
 	if err != nil {
-		t.Skipf("search_audit (experimental) unavailable — likely no script-execution authorization: %v", err)
+		t.Skipf("search_audit unavailable — likely no script-execution authorization: %v", err)
 	}
 	t.Logf("search_audit returned %d record(s), status=%q", len(res.Records), res.Status)
-	if len(res.Records) == 0 {
-		t.Logf("no records parsed; raw console follows for tuning:\n%s", res.Console)
+	for i, r := range res.Records {
+		if r.Timestamp == "" || r.EventType == "" {
+			t.Errorf("record %d has empty timestamp/eventType (parse regression?): %+v", i, r)
+		}
+	}
+	// A live instance always has audit activity (logins, etc.); a filter-free
+	// query returning nothing points at a broken search, not an empty trail.
+	if res.Status == "success" && len(res.Records) == 0 {
+		t.Errorf("no audit records parsed from a live instance with status=success")
 	}
 }
 
