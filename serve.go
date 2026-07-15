@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/mckay22/midpoint-mcp-server/internal/midpoint"
+	"github.com/mckay22/midpoint-mcp-server/internal/oidcauth"
+	sdkauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -27,22 +29,34 @@ func serveStdio(client *midpoint.Client, cfg midpoint.Config) error {
 	return newMCPServer(client, cfg).Run(ctx, &mcp.StdioTransport{})
 }
 
-// serveHTTP runs the streamable HTTP transport at /mcp. It refuses to bind any
-// non-loopback address: HTTP mode has no per-request authentication yet
-// (PLAN.md M4.5), so a network-reachable surface would be unauthenticated.
-// There is deliberately no flag to override this.
+// serveHTTP runs the streamable HTTP transport at /mcp.
+//
+// Without OIDC configured it is personal mode and refuses to bind any
+// non-loopback address (HTTP has no per-request auth). With OIDC configured it
+// is resource-server mode: every request must carry a valid bearer token, is
+// mapped to a midPoint user, and executes as that user — so binding a
+// network-reachable address is allowed.
 func serveHTTP(addr string, client *midpoint.Client, cfg midpoint.Config) error {
-	bind, err := resolveLoopbackAddr(addr)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	var authn *oidcauth.Authenticator
+	if cfg.ResourceServerMode() {
+		a, err := oidcauth.New(ctx, cfg.OIDCIssuer, cfg.OIDCAudience)
+		if err != nil {
+			return fmt.Errorf("configuring OIDC issuer %q: %w", cfg.OIDCIssuer, err)
+		}
+		authn = a
+	}
+
+	bind, err := resolveBindAddr(addr, cfg.ResourceServerMode())
 	if err != nil {
 		return err
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-
 	httpServer := &http.Server{
 		Addr:              bind,
-		Handler:           mcpHTTPHandler(client, cfg),
+		Handler:           mcpHTTPHandler(client, cfg, authn),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -54,18 +68,27 @@ func serveHTTP(addr string, client *midpoint.Client, cfg midpoint.Config) error 
 		_ = httpServer.Shutdown(shutdownCtx)
 	}()
 
-	log.Printf("%s %s serving on http://%s/mcp (midPoint: %s; writes: %s; personal mode, loopback only)",
-		serverName, version, bind, cfg.BaseURL, writeState(cfg))
+	mode := "personal mode, loopback only"
+	if authn != nil {
+		mode = "resource-server mode (OIDC bearer)"
+	}
+	log.Printf("%s %s serving on http://%s/mcp (midPoint: %s; writes: %s; %s)",
+		serverName, version, bind, cfg.BaseURL, writeState(cfg), mode)
 	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
 }
 
-// mcpHTTPHandler mounts the streamable MCP handler at /mcp. A single shared
-// server backs every session (personal mode).
-func mcpHTTPHandler(client *midpoint.Client, cfg midpoint.Config) http.Handler {
+// mcpHTTPHandler mounts the streamable MCP handler at /mcp. When authn is set,
+// requests must pass bearer-token verification and each is executed as the
+// mapped midPoint user (via principalMiddleware + Switch-To-Principal).
+func mcpHTTPHandler(client *midpoint.Client, cfg midpoint.Config, authn *oidcauth.Authenticator) http.Handler {
 	server := newMCPServer(client, cfg)
+	if authn != nil {
+		server.AddReceivingMiddleware(principalMiddleware)
+	}
+
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{
@@ -73,16 +96,22 @@ func mcpHTTPHandler(client *midpoint.Client, cfg midpoint.Config) http.Handler {
 			Logger:         slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
 		},
 	)
+
+	var handler http.Handler = streamable
+	if authn != nil {
+		handler = sdkauth.RequireBearerToken(bearerVerifier(authn, client), nil)(streamable)
+	}
+
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", streamable)
-	mux.Handle("/mcp/", streamable)
+	mux.Handle("/mcp", handler)
+	mux.Handle("/mcp/", handler)
 	return mux
 }
 
-// resolveLoopbackAddr normalizes a --http bind address and enforces the
-// loopback-only rule. A missing host defaults to 127.0.0.1; any non-loopback
-// host is rejected.
-func resolveLoopbackAddr(addr string) (string, error) {
+// resolveBindAddr normalizes a --http bind address. A missing host defaults to
+// 127.0.0.1. A non-loopback host is rejected unless allowNonLoopback is set
+// (which happens only in resource-server mode, where requests are authenticated).
+func resolveBindAddr(addr string, allowNonLoopback bool) (string, error) {
 	a := strings.TrimSpace(addr)
 	if a == "" {
 		return "", fmt.Errorf("empty --http address")
@@ -102,10 +131,11 @@ func resolveLoopbackAddr(addr string) (string, error) {
 	if host == "" {
 		host = "127.0.0.1"
 	}
-	if !isLoopbackHost(host) {
+	if !isLoopbackHost(host) && !allowNonLoopback {
 		return "", fmt.Errorf(
-			"refusing to bind --http to non-loopback host %q: HTTP mode has no per-request authentication yet "+
-				"(see PLAN.md M4.5); use 127.0.0.1, ::1, or localhost", host)
+			"refusing to bind --http to non-loopback host %q: HTTP has no per-request authentication unless "+
+				"OIDC resource-server mode is configured (%s + %s); otherwise use 127.0.0.1, ::1, or localhost",
+			host, midpoint.EnvOIDCIssuer, midpoint.EnvOIDCAudience)
 	}
 	return net.JoinHostPort(host, port), nil
 }

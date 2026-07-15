@@ -10,7 +10,7 @@ import (
 	"github.com/mckay22/midpoint-mcp-server/internal/midpoint"
 )
 
-func TestResolveLoopbackAddr(t *testing.T) {
+func TestResolveBindAddrLoopbackOnly(t *testing.T) {
 	tests := []struct {
 		name    string
 		in      string
@@ -31,20 +31,39 @@ func TestResolveLoopbackAddr(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := resolveLoopbackAddr(tt.in)
+			got, err := resolveBindAddr(tt.in, false) // loopback-only (personal mode)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatalf("resolveLoopbackAddr(%q) = %q, want error", tt.in, got)
+					t.Fatalf("resolveBindAddr(%q, false) = %q, want error", tt.in, got)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("resolveLoopbackAddr(%q): unexpected error %v", tt.in, err)
+				t.Fatalf("resolveBindAddr(%q, false): unexpected error %v", tt.in, err)
 			}
 			if got != tt.want {
-				t.Errorf("resolveLoopbackAddr(%q) = %q, want %q", tt.in, got, tt.want)
+				t.Errorf("resolveBindAddr(%q, false) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+// In resource-server mode (allowNonLoopback=true) a public bind is permitted,
+// but an empty host still defaults to loopback (operator must opt in explicitly).
+func TestResolveBindAddrResourceServer(t *testing.T) {
+	cases := map[string]string{
+		"0.0.0.0:3001":     "0.0.0.0:3001",
+		"192.168.1.10:443": "192.168.1.10:443",
+		":3001":            "127.0.0.1:3001",
+	}
+	for in, want := range cases {
+		got, err := resolveBindAddr(in, true)
+		if err != nil {
+			t.Fatalf("resolveBindAddr(%q, true): %v", in, err)
+		}
+		if got != want {
+			t.Errorf("resolveBindAddr(%q, true) = %q, want %q", in, got, want)
+		}
 	}
 }
 
@@ -53,7 +72,7 @@ func TestResolveLoopbackAddr(t *testing.T) {
 // midPoint, so the client target is irrelevant.)
 func TestHTTPHandlerInitialize(t *testing.T) {
 	client := midpoint.NewClient(midpoint.Config{BaseURL: "http://127.0.0.1:1", Username: "u", Password: "p"})
-	srv := httptest.NewServer(mcpHTTPHandler(client, midpoint.Config{}))
+	srv := httptest.NewServer(mcpHTTPHandler(client, midpoint.Config{}, nil))
 	defer srv.Close()
 
 	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`
@@ -80,7 +99,7 @@ func TestHTTPHandlerInitialize(t *testing.T) {
 
 // TestHTTPUnknownPath404 confirms only /mcp is served.
 func TestHTTPUnknownPath404(t *testing.T) {
-	srv := httptest.NewServer(mcpHTTPHandler(midpoint.NewClient(midpoint.Config{}), midpoint.Config{}))
+	srv := httptest.NewServer(mcpHTTPHandler(midpoint.NewClient(midpoint.Config{}), midpoint.Config{}, nil))
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/nope")

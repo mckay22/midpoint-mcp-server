@@ -113,6 +113,11 @@ func (c *Client) doFull(ctx context.Context, method, path string, query url.Valu
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	// Resource-server mode: execute as the mapped end user, not the service
+	// account whose Basic credentials we present.
+	if principal := principalFromContext(ctx); principal != "" {
+		req.Header.Set(SwitchToPrincipalHeader, principal)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {

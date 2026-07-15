@@ -7,9 +7,9 @@ manage users, roles, and resources through midPoint's REST API.
 
 > **Status: early development.** The tool surface below is the design target.
 > Implemented so far: `ping` (M0), the read tools (M1), the write tools with
-> their gate (M2), self-service requests & approvals (M3), and the
-> streamable-HTTP transport + packaging (M4). Per-user OIDC auth for shared HTTP
-> is next (M4.5).
+> their gate (M2), self-service requests & approvals (M3), the streamable-HTTP
+> transport + packaging (M4), and OIDC resource-server identity for shared HTTP
+> (M4.5).
 
 ## Configuration
 
@@ -22,6 +22,12 @@ Credentials are read from the environment at runtime (never written to disk):
 | `MIDPOINT_PASSWORD` | yes | password for that user |
 | `MIDPOINT_INSECURE_TLS` | no | `true` skips TLS verification — self-signed dev instances only |
 | `MIDPOINT_MCP_ALLOW_WRITES` | no | `true` enables the write tools; otherwise they return a dry-run preview |
+| `MIDPOINT_MCP_OIDC_ISSUER` | no | OIDC issuer URL; enables resource-server mode for HTTP (must be set with the audience) |
+| `MIDPOINT_MCP_OIDC_AUDIENCE` | no | expected token audience for resource-server mode |
+
+In resource-server mode, `MIDPOINT_USERNAME`/`MIDPOINT_PASSWORD` are the **service
+account** — it authenticates the server to midPoint and must hold the
+archetype-filtered `#proxy` authorization so it can act as the mapped end users.
 
 ## Running
 
@@ -87,11 +93,35 @@ non-root user. `-i` keeps stdin open for the stdio transport.
 midpoint-mcp-server --http :3001   # streamable transport at http://127.0.0.1:3001/mcp
 ```
 
-**HTTP mode is loopback-only for now.** It binds `127.0.0.1` by default and
-*refuses to start* on any non-loopback address — it has no per-request
-authentication yet, so a network-reachable endpoint would let every caller act
-as the single configured identity. Per-user OAuth/OIDC for shared, multi-user
-HTTP is the next milestone (M4.5); use stdio until then.
+**Personal mode (no OIDC):** HTTP binds `127.0.0.1` by default and *refuses to
+start* on any non-loopback address. Without per-request auth, a network-reachable
+endpoint would let every caller act as the single configured identity, so this is
+loopback-only by design. Use it for a local client over HTTP; use stdio for
+everything else.
+
+**Resource-server mode (OIDC):** set `MIDPOINT_MCP_OIDC_ISSUER` and
+`MIDPOINT_MCP_OIDC_AUDIENCE`. Now every request must carry an
+`Authorization: Bearer` token:
+
+- the token is validated against the issuer's JWKS (signature, issuer, audience,
+  expiry) — invalid tokens get `401`;
+- the caller is mapped to a midPoint user (`sub` → `externalId`, else
+  `preferred_username` → `name`);
+- the request executes **as that user** via midPoint's `Switch-To-Principal`
+  header, while the server authenticates as the `#proxy` service account — so
+  approvals and audit attribute to the real human.
+
+Because requests are authenticated per user, binding a non-loopback address is
+allowed in this mode:
+
+```sh
+MIDPOINT_MCP_OIDC_ISSUER=https://keycloak.example.com/realms/corp \
+MIDPOINT_MCP_OIDC_AUDIENCE=midpoint-mcp \
+midpoint-mcp-server --http 0.0.0.0:3001
+```
+
+Identity always comes from the validated token — there is no on-behalf-of tool
+argument a caller could use to act as someone else.
 
 ## Tools
 
@@ -122,9 +152,9 @@ and the approval actions respect the write gate):
 ## Design
 
 - Single static binary (Go, official MCP SDK), no runtime dependencies
-- **stdio** transport by default — drops into Claude Desktop, VS Code, or any
-  MCP client config; **streamable HTTP** via `--http` (loopback-only until
-  per-user auth lands)
+- **stdio** transport by default (personal mode) — drops into Claude Desktop,
+  VS Code, or any MCP client; **streamable HTTP** via `--http` (loopback-only
+  unless OIDC resource-server mode is configured, then per-user via bearer tokens)
 - Talks to midPoint's REST API (4.8+); credentials via environment variables,
   never written to disk
 - Write operations are off unless `MIDPOINT_MCP_ALLOW_WRITES=true` — an AI

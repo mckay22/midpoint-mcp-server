@@ -11,11 +11,13 @@ import (
 
 // Environment variables consumed by ConfigFromEnv.
 const (
-	EnvURL         = "MIDPOINT_URL"
-	EnvUsername    = "MIDPOINT_USERNAME"
-	EnvPassword    = "MIDPOINT_PASSWORD"
-	EnvInsecureTLS = "MIDPOINT_INSECURE_TLS"
-	EnvAllowWrites = "MIDPOINT_MCP_ALLOW_WRITES"
+	EnvURL          = "MIDPOINT_URL"
+	EnvUsername     = "MIDPOINT_USERNAME"
+	EnvPassword     = "MIDPOINT_PASSWORD"
+	EnvInsecureTLS  = "MIDPOINT_INSECURE_TLS"
+	EnvAllowWrites  = "MIDPOINT_MCP_ALLOW_WRITES"
+	EnvOIDCIssuer   = "MIDPOINT_MCP_OIDC_ISSUER"
+	EnvOIDCAudience = "MIDPOINT_MCP_OIDC_AUDIENCE"
 )
 
 // Config holds everything needed to reach a midPoint deployment.
@@ -37,6 +39,17 @@ type Config struct {
 	// return a dry-run preview instead of calling midPoint. The client itself
 	// never enforces this — it is a policy the tool layer applies.
 	AllowWrites bool
+
+	// OIDCIssuer and OIDCAudience enable resource-server mode (HTTP): incoming
+	// bearer tokens are validated against the issuer's JWKS and the caller is
+	// mapped to a midPoint user (see PLAN.md M4.5). Both must be set together.
+	OIDCIssuer   string
+	OIDCAudience string
+}
+
+// ResourceServerMode reports whether OIDC bearer-token auth is configured.
+func (c Config) ResourceServerMode() bool {
+	return c.OIDCIssuer != "" && c.OIDCAudience != ""
 }
 
 // ConfigFromEnv builds a Config from the MIDPOINT_* environment variables,
@@ -44,11 +57,13 @@ type Config struct {
 // value is never included in the error.
 func ConfigFromEnv() (Config, error) {
 	cfg := Config{
-		BaseURL:     strings.TrimSpace(os.Getenv(EnvURL)),
-		Username:    strings.TrimSpace(os.Getenv(EnvUsername)),
-		Password:    os.Getenv(EnvPassword),
-		InsecureTLS: strings.EqualFold(strings.TrimSpace(os.Getenv(EnvInsecureTLS)), "true"),
-		AllowWrites: strings.EqualFold(strings.TrimSpace(os.Getenv(EnvAllowWrites)), "true"),
+		BaseURL:      strings.TrimSpace(os.Getenv(EnvURL)),
+		Username:     strings.TrimSpace(os.Getenv(EnvUsername)),
+		Password:     os.Getenv(EnvPassword),
+		InsecureTLS:  strings.EqualFold(strings.TrimSpace(os.Getenv(EnvInsecureTLS)), "true"),
+		AllowWrites:  strings.EqualFold(strings.TrimSpace(os.Getenv(EnvAllowWrites)), "true"),
+		OIDCIssuer:   strings.TrimSpace(os.Getenv(EnvOIDCIssuer)),
+		OIDCAudience: strings.TrimSpace(os.Getenv(EnvOIDCAudience)),
 	}
 
 	var missing []string
@@ -63,6 +78,12 @@ func ConfigFromEnv() (Config, error) {
 	}
 	if len(missing) > 0 {
 		return Config{}, fmt.Errorf("missing required environment variable(s): %s", strings.Join(missing, ", "))
+	}
+
+	// OIDC is all-or-nothing: a half-configured resource server would silently
+	// fall back to unauthenticated behavior, which must never happen.
+	if (cfg.OIDCIssuer == "") != (cfg.OIDCAudience == "") {
+		return Config{}, fmt.Errorf("%s and %s must be set together", EnvOIDCIssuer, EnvOIDCAudience)
 	}
 
 	return cfg, nil

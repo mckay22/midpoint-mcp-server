@@ -6,6 +6,41 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+### M4.5 — OIDC resource-server identity
+
+- Resource-server mode for HTTP: set `MIDPOINT_MCP_OIDC_ISSUER` +
+  `MIDPOINT_MCP_OIDC_AUDIENCE` and every request must present an OAuth
+  `Authorization: Bearer` token. Tokens are validated against the issuer's JWKS
+  (signature, issuer, audience, expiry) via `go-oidc`; failures return 401.
+- Each caller is mapped to a midPoint user — `sub` → `externalId`, falling back
+  to `preferred_username` → `name` — and the request executes as that user via
+  the `Switch-To-Principal: <oid>` header while authenticating as the service
+  account (which holds the archetype-filtered `#proxy` authorization). The
+  correlation search itself runs as the service account, not impersonated.
+- Identity flows the guaranteed way: an SDK receiving-middleware reads the
+  per-request `TokenInfo` and puts the correlated OID into the request context;
+  the REST client sets `Switch-To-Principal` from the context. No on-behalf-of
+  tool argument exists — identity comes only from the validated token.
+- Non-loopback `--http` binding is unlocked **only** when OIDC is configured;
+  otherwise the loopback-only rail from M4 stands. `MIDPOINT_MCP_OIDC_*` is
+  all-or-nothing (a half-configured resource server is rejected at startup).
+- Test-first (security-critical): token validation with a static JWKS and
+  self-signed tokens (valid / expired / wrong-audience / wrong-issuer /
+  untrusted-signature / malformed); correlation precedence and ambiguity;
+  `Switch-To-Principal` header injection; config validation; and a full
+  end-to-end test — mock OIDC (discovery + JWKS) + MCP client with a bearer
+  token → `ping` → the mapped `Switch-To-Principal` reaches midPoint, and
+  missing/expired/wrong-audience tokens are refused. `go test ./...` green.
+
+### Dependencies
+
+- `github.com/coreos/go-oidc/v3` — OIDC discovery, JWKS handling, and bearer
+  token verification. Hand-rolling JWT signature/issuer/audience/expiry checks
+  for a security boundary would be a liability; this is the canonical Go OIDC
+  library. Pulls in `github.com/go-jose/go-jose/v4` (JWT/JWK crypto).
+- `github.com/go-jose/go-jose/v4` — also imported directly in tests to mint
+  signed tokens and serve a JWKS; already required transitively by `go-oidc`.
+
 ### M4 — HTTP transport + packaging
 
 - `--http <addr>` runs the SDK's streamable HTTP transport at `/mcp` (stdio stays
