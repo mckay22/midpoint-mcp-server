@@ -27,9 +27,38 @@ product-neutral (midPoint + MCP only; no downstream deployment stories).
   assign/unassign_role, recompute_user; `MIDPOINT_MCP_ALLOW_WRITES` gate with
   dry-run previews when off. AC: disable→enable round-trip visible in midPoint
   GUI; writes refused (with preview) when the gate is off.
-- **M3 — HTTP transport + packaging**: `--http` streamable HTTP mode,
+- **M3 — requests & approvals (self-service)**: request_role (assignment-add
+  delta → midPoint approval policy turns it into a Case instead of executing),
+  list_my_requests, list_work_items (the caller's approval inbox),
+  approve_work_item / reject_work_item (behind the write gate), get_case.
+  Exact case/work-item REST endpoints verified against midPoint 4.10 during
+  implementation. AC against a live midPoint: request → case opens attributed
+  to the correct requester → approve via work item → assignment appears.
+- **M4 — HTTP transport + packaging**: `--http` streamable HTTP mode,
   Dockerfile (scratch, static), GitHub release with binaries, MCP client
   config snippets in README (Claude Desktop, VS Code).
+
+## Identity model (who is the caller?)
+
+Requests and approvals are only meaningful if midPoint sees the real human.
+Two supported modes, decided by transport:
+
+- **Personal mode (stdio, default)**: the server runs locally with the USER's
+  own midPoint credentials — midPoint natively sees them, approval cases are
+  attributed correctly, no delegation machinery exists to abuse.
+- **Resource-server mode (HTTP, shared)**: per the MCP Authorization spec the
+  client presents an OAuth bearer token; the server validates it against the
+  configured OIDC issuer's JWKS (`MIDPOINT_MCP_OIDC_ISSUER`,
+  `MIDPOINT_MCP_OIDC_AUDIENCE`), extracts `sub`/`preferred_username`, maps it
+  to the midPoint user (correlate `sub` == `externalId`, fall back
+  `preferred_username` == `name`), and calls midPoint as the service account
+  with the **`Switch-To-Principal: <oid>`** header. The service account holds
+  the REST **`#proxy`** authorization, filtered (e.g. to the `Person`
+  archetype) so it can never impersonate administrators
+  (docs.evolveum.com → REST → authentication → impersonation).
+- **Never**: an `on_behalf_of` tool parameter. Identity comes from the
+  transport's authentication or the local credential — never from tool
+  arguments a caller can fabricate.
 
 ## Rules
 
