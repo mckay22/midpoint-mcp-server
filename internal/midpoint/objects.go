@@ -166,12 +166,26 @@ type UserAssignments struct {
 }
 
 type assignmentJSON struct {
+	ID           flexID      `json:"@id"`
 	TargetRef    *refJSON    `json:"targetRef"`
 	Activation   *activation `json:"activation"`
 	Subtype      string      `json:"subtype"`
 	Construction *struct {
 		ResourceRef *refJSON `json:"resourceRef"`
 	} `json:"construction"`
+}
+
+// flexID decodes a midPoint container id (@id), which may serialize as a JSON
+// number or string. It is kept as a string for use in modification paths like
+// "assignment[3]".
+type flexID struct{ s string }
+
+func (f *flexID) UnmarshalJSON(data []byte) error {
+	f.s = strings.Trim(string(bytes.TrimSpace(data)), `"`)
+	if f.s == "null" {
+		f.s = ""
+	}
+	return nil
 }
 
 // target returns the reference an assignment points at, preferring an explicit

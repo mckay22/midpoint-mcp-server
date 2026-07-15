@@ -80,3 +80,80 @@ func TestIntegrationReadOps(t *testing.T) {
 		t.Fatalf("ListResources: %v", err)
 	}
 }
+
+// TestIntegrationWriteRoundTrip exercises the M2 disable→enable round-trip
+// against a live midPoint. It runs only when the write gate is on, so a
+// read-only integration run is never blocked by it.
+func TestIntegrationWriteRoundTrip(t *testing.T) {
+	cfg, err := ConfigFromEnv()
+	if err != nil {
+		t.Skipf("skipping live integration test: %v", err)
+	}
+	if !cfg.AllowWrites {
+		t.Skipf("skipping write round-trip: set %s=true to run", EnvAllowWrites)
+	}
+	c := NewClient(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	const name = "mcp-it-user"
+	oid := findOrCreateUser(ctx, t, c, name)
+
+	// disable → status becomes disabled
+	applyPlan(ctx, t, c, func() (Plan, error) { return c.PlanSetUserEnabled(oid, false) })
+	if got := userStatus(ctx, t, c, oid); got != "disabled" {
+		t.Fatalf("after disable, status = %q, want disabled", got)
+	}
+
+	// enable → status becomes enabled again
+	applyPlan(ctx, t, c, func() (Plan, error) { return c.PlanSetUserEnabled(oid, true) })
+	if got := userStatus(ctx, t, c, oid); got != "enabled" {
+		t.Fatalf("after enable, status = %q, want enabled", got)
+	}
+	t.Logf("disable→enable round-trip OK for %s (%s)", name, oid)
+}
+
+func findOrCreateUser(ctx context.Context, t *testing.T, c *Client, name string) string {
+	t.Helper()
+	users, err := c.SearchUsers(ctx, SearchOptions{Query: name, Limit: 5})
+	if err != nil {
+		t.Fatalf("SearchUsers: %v", err)
+	}
+	for _, u := range users {
+		if u.Name == name {
+			return u.OID
+		}
+	}
+	plan, err := c.PlanCreateUser(UserSpec{Name: name, FullName: "MCP Integration Test User"})
+	if err != nil {
+		t.Fatalf("PlanCreateUser: %v", err)
+	}
+	res, err := c.Apply(ctx, plan)
+	if err != nil {
+		t.Fatalf("creating %s: %v", name, err)
+	}
+	if res.OID == "" {
+		t.Fatalf("create %s returned no oid (status %d)", name, res.StatusCode)
+	}
+	return res.OID
+}
+
+func applyPlan(ctx context.Context, t *testing.T, c *Client, build func() (Plan, error)) {
+	t.Helper()
+	plan, err := build()
+	if err != nil {
+		t.Fatalf("building plan: %v", err)
+	}
+	if _, err := c.Apply(ctx, plan); err != nil {
+		t.Fatalf("applying %q: %v", plan.Summary, err)
+	}
+}
+
+func userStatus(ctx context.Context, t *testing.T, c *Client, oid string) string {
+	t.Helper()
+	u, err := c.GetUser(ctx, oid)
+	if err != nil {
+		t.Fatalf("GetUser: %v", err)
+	}
+	return u.Status
+}

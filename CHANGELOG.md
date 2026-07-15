@@ -6,6 +6,29 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+### M2 — write tools + gate
+
+- Six write tools: `create_user`, `enable_user`, `disable_user`, `assign_role`,
+  `unassign_role`, `recompute_user`.
+- `MIDPOINT_MCP_ALLOW_WRITES` gate (default off). When off, every write tool
+  returns a **dry-run preview** — the exact method, endpoint, and request body it
+  *would* send — and makes no mutating call. When on, it applies the change and
+  reports the result (e.g. the new oid from the create `Location` header).
+- REST mapping verified against the 4.10 docs: create via `POST /ws/rest/users`
+  (`{"user":{…}}` → 201 + `Location`); enable/disable/assign/unassign via
+  `PATCH /ws/rest/users/{oid}` with an `objectModification`/`itemDelta`
+  (`replace activation/administrativeStatus`; `add assignment`; `delete
+  assignment[<id>]`); recompute via `PATCH …?options=reconcile` with an empty
+  modification. `unassign_role` reads the user first to resolve the exact
+  assignment container id(s).
+- Write path is structured as build-a-Plan then apply, so the preview and the
+  applied request are guaranteed identical.
+- Tests: delta-JSON correctness for every plan, `Location`→oid parsing, and MCP
+  round-trip tests proving the gate — **gate off makes no write call and returns
+  a preview; gate on issues the expected PATCH/POST**. Integration test extended
+  with a live disable→enable round-trip (runs only when the gate is on).
+  `go test ./...` green.
+
 ### M1 — read tools
 
 - Seven read-only MCP tools: `search_users` (free-text over name/full

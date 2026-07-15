@@ -78,10 +78,23 @@ func (c *Client) post(ctx context.Context, path string, query url.Values, body [
 	return c.do(ctx, http.MethodPost, path, query, body)
 }
 
-// do issues an authenticated request against restPrefix+path and returns the
-// response body for any 2xx status. Errors carry the path and status but never
-// the credentials.
+// rawResponse is the subset of an HTTP response callers need, including headers
+// (the create operation reads the new oid from Location).
+type rawResponse struct {
+	StatusCode int
+	Header     http.Header
+	Body       []byte
+}
+
+// do issues an authenticated request and returns the response body for any 2xx
+// status. Errors carry the path and status but never the credentials.
 func (c *Client) do(ctx context.Context, method, path string, query url.Values, body []byte) ([]byte, error) {
+	resp, err := c.doFull(ctx, method, path, query, body)
+	return resp.Body, err
+}
+
+// doFull is like do but exposes the full response (status and headers).
+func (c *Client) doFull(ctx context.Context, method, path string, query url.Values, body []byte) (rawResponse, error) {
 	u := strings.TrimRight(c.cfg.BaseURL, "/") + restPrefix + path
 	if len(query) > 0 {
 		u += "?" + query.Encode()
@@ -93,7 +106,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u, reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("building request for %s: %w", path, err)
+		return rawResponse{}, fmt.Errorf("building request for %s: %w", path, err)
 	}
 	req.SetBasicAuth(c.cfg.Username, c.cfg.Password)
 	req.Header.Set("Accept", "application/json")
@@ -103,19 +116,20 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("calling midPoint %s: %w", path, err)
+		return rawResponse{}, fmt.Errorf("calling midPoint %s: %w", path, err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
-		return nil, fmt.Errorf("reading %s response: %w", path, err)
+		return rawResponse{}, fmt.Errorf("reading %s response: %w", path, err)
 	}
 
+	out := rawResponse{StatusCode: resp.StatusCode, Header: resp.Header, Body: respBody}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("midPoint %s: unexpected status %s", path, resp.Status)
+		return out, fmt.Errorf("midPoint %s: unexpected status %s", path, resp.Status)
 	}
-	return respBody, nil
+	return out, nil
 }
 
 // selfResponse mirrors midPoint's JSON envelope for a focus object, which wraps

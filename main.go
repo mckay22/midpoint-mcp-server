@@ -38,10 +38,15 @@ func run() error {
 	}, nil)
 	registerPing(server, client)
 	registerReadTools(server, client)
+	registerWriteTools(server, client, cfg.AllowWrites)
 
 	// Protocol traffic owns stdout; diagnostics go to stderr.
 	log.SetOutput(os.Stderr)
-	log.Printf("%s %s serving on stdio (midPoint: %s)", serverName, version, cfg.BaseURL)
+	writeState := "disabled (dry-run previews)"
+	if cfg.AllowWrites {
+		writeState = "ENABLED"
+	}
+	log.Printf("%s %s serving on stdio (midPoint: %s; writes: %s)", serverName, version, cfg.BaseURL, writeState)
 
 	// End the session cleanly on Ctrl-C / SIGTERM as well as stdin EOF.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)

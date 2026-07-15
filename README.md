@@ -6,10 +6,9 @@ governance operations as MCP tools so AI assistants can query and (optionally)
 manage users, roles, and resources through midPoint's REST API.
 
 > **Status: early development.** The tool surface below is the design target.
-> Implemented so far: a stdio server with `ping` (M0) and the full read tool set
-> (M1) — `search_users`, `get_user`, `get_user_assignments`, `list_roles`,
-> `get_role`, `list_resources`, `get_resource`. The write tools are not built
-> yet — watch releases.
+> Implemented so far: `ping` (M0), the full read tool set (M1), and the write
+> tools with their gate (M2). Transports beyond stdio and packaging are still to
+> come — watch releases.
 
 ## Configuration
 
@@ -21,6 +20,7 @@ Credentials are read from the environment at runtime (never written to disk):
 | `MIDPOINT_USERNAME` | yes | REST user for HTTP Basic auth |
 | `MIDPOINT_PASSWORD` | yes | password for that user |
 | `MIDPOINT_INSECURE_TLS` | no | `true` skips TLS verification — self-signed dev instances only |
+| `MIDPOINT_MCP_ALLOW_WRITES` | no | `true` enables the write tools; otherwise they return a dry-run preview |
 
 ## Tools
 
@@ -31,7 +31,8 @@ Read (default, **implemented**):
 - `list_resources` / `get_resource` — connected systems and their status
 - `get_user_assignments` — what a user actually has, and why
 
-Write (planned; must be explicitly enabled):
+Write (**implemented**; off unless `MIDPOINT_MCP_ALLOW_WRITES=true`, otherwise
+each returns a dry-run preview of the exact request it would send):
 
 - `create_user`, `enable_user`, `disable_user`
 - `assign_role`, `unassign_role`

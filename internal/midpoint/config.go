@@ -15,6 +15,7 @@ const (
 	EnvUsername    = "MIDPOINT_USERNAME"
 	EnvPassword    = "MIDPOINT_PASSWORD"
 	EnvInsecureTLS = "MIDPOINT_INSECURE_TLS"
+	EnvAllowWrites = "MIDPOINT_MCP_ALLOW_WRITES"
 )
 
 // Config holds everything needed to reach a midPoint deployment.
@@ -31,6 +32,11 @@ type Config struct {
 	// server can talk to midPoint dev instances that ship self-signed certs;
 	// never enable it against a deployment you care about.
 	InsecureTLS bool
+
+	// AllowWrites gates the write tools. When false (the default), write tools
+	// return a dry-run preview instead of calling midPoint. The client itself
+	// never enforces this — it is a policy the tool layer applies.
+	AllowWrites bool
 }
 
 // ConfigFromEnv builds a Config from the MIDPOINT_* environment variables,
@@ -42,6 +48,7 @@ func ConfigFromEnv() (Config, error) {
 		Username:    strings.TrimSpace(os.Getenv(EnvUsername)),
 		Password:    os.Getenv(EnvPassword),
 		InsecureTLS: strings.EqualFold(strings.TrimSpace(os.Getenv(EnvInsecureTLS)), "true"),
+		AllowWrites: strings.EqualFold(strings.TrimSpace(os.Getenv(EnvAllowWrites)), "true"),
 	}
 
 	var missing []string
