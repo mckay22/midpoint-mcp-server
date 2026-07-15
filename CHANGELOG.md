@@ -6,6 +6,12 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-15
+
+First tagged release. Covers M0–M4.5: stdio + streamable-HTTP transports, the
+read/write/requests-&-approvals tool set with the write gate, and OIDC
+resource-server identity for shared HTTP.
+
 ### M4.5 — OIDC resource-server identity
 
 - Resource-server mode for HTTP: set `MIDPOINT_MCP_OIDC_ISSUER` +
