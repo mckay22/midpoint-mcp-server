@@ -5,8 +5,21 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server for
 governance operations as MCP tools so AI assistants can query and (optionally)
 manage users, roles, and resources through midPoint's REST API.
 
-> **Status: early development.** The tool surface below is the design target;
-> watch releases for the first usable build.
+> **Status: early development.** The tool surface below is the design target.
+> Implemented so far (M0): a stdio server with a `ping` tool that connects to
+> midPoint and returns the authenticated identity. The read/write tools below
+> are not built yet — watch releases.
+
+## Configuration
+
+Credentials are read from the environment at runtime (never written to disk):
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `MIDPOINT_URL` | yes | midPoint deployment root, e.g. `https://localhost:8443/midpoint` |
+| `MIDPOINT_USERNAME` | yes | REST user for HTTP Basic auth |
+| `MIDPOINT_PASSWORD` | yes | password for that user |
+| `MIDPOINT_INSECURE_TLS` | no | `true` skips TLS verification — self-signed dev instances only |
 
 ## Planned tools
 
