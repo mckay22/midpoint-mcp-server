@@ -6,6 +6,24 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-15
+
+### Fixed
+
+- **List/search tools returned `count` correctly but empty `oid`/`name`** for
+  every result (`search_users`, `list_roles`, `list_resources`, `search_objects`,
+  `list_my_requests`, `list_work_items`, and `get_case`'s work items). Root cause:
+  midPoint 4.10 double-wraps a search response — the `ObjectListType` sits under a
+  top-level `object` key, and the actual results under *that* type's own nested
+  `object` key (`{"object":{"@type":"…ObjectListType","object":[…]}}`) — but the
+  decoder read the top-level `object` as the results array, so each row decoded
+  the wrapper (no `oid`/`name`) instead of an object. `parseObjectList` now
+  handles the nested shape (and still tolerates a flat array and single-element
+  collapse). Get-by-oid tools and `ping` were unaffected (single-wrapped). Fixed
+  and **verified live against midPoint 4.10.3** (`list_roles` → "Superuser",
+  `search_objects` → real users). Fixtures updated to the real shape; a
+  `parseObjectList` unit test covers every envelope form.
+
 ## [0.2.0] - 2026-07-15
 
 Adds query-driven reporting (M5). **Ships with a known live-testing regression in

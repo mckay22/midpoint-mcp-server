@@ -29,9 +29,42 @@ func (s *flexSlice) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// objectList is midPoint's ObjectListType envelope for search/list responses.
-type objectList struct {
-	Object flexSlice `json:"object"`
+// parseObjectList extracts the matched objects from a midPoint search/list
+// response. midPoint wraps the ObjectListType under a top-level "object" key,
+// and the actual objects under THAT type's own nested "object" key:
+//
+//	{"object": {"@type": "...ObjectListType", "object": [ {obj}, ... ]}}
+//
+// It also accepts the flatter {"object": [ ... ]} form, and midPoint's habit of
+// collapsing a single-element list to a bare object at either level.
+func parseObjectList(body []byte) (flexSlice, error) {
+	var top struct {
+		Object json.RawMessage `json:"object"`
+	}
+	if err := json.Unmarshal(body, &top); err != nil {
+		return nil, err
+	}
+	inner := bytes.TrimSpace(top.Object)
+	if len(inner) == 0 || string(inner) == "null" {
+		return nil, nil
+	}
+	// Flat form: the top-level "object" is already the results array.
+	if inner[0] == '[' {
+		var arr flexSlice
+		if err := arr.UnmarshalJSON(inner); err != nil {
+			return nil, err
+		}
+		return arr, nil
+	}
+	// Nested form: the top-level "object" is the ObjectListType; results are
+	// under its own "object" key (which may itself be a single collapsed object).
+	var list struct {
+		Object flexSlice `json:"object"`
+	}
+	if err := json.Unmarshal(inner, &list); err != nil {
+		return nil, err
+	}
+	return list.Object, nil
 }
 
 // unwrapObject strips midPoint's single-object envelope (e.g. {"user": {...}})

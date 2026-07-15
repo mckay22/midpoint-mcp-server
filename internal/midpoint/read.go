@@ -218,11 +218,11 @@ func (c *Client) searchRawOpts(ctx context.Context, collection, filterText strin
 	if err != nil {
 		return nil, err
 	}
-	var list objectList
-	if err := json.Unmarshal(respBody, &list); err != nil {
+	objects, err := parseObjectList(respBody)
+	if err != nil {
 		return nil, fmt.Errorf("decoding %s search response: %w", collection, err)
 	}
-	return list.Object, nil
+	return objects, nil
 }
 
 // searchRequest models the REST search body: {"query":{"filter":{"text":...},"paging":{...}}}.

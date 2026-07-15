@@ -1,17 +1,21 @@
 {
-  "object": [
-    {
-      "@type": "http://midpoint.evolveum.com/xml/ns/public/common/common-3#RoleType",
-      "oid": "11111111-1111-1111-1111-111111111111",
-      "name": "Superuser",
-      "displayName": "Superuser",
-      "description": "All privileges"
-    },
-    {
-      "@type": "http://midpoint.evolveum.com/xml/ns/public/common/common-3#RoleType",
-      "oid": "33333333-3333-3333-3333-333333333333",
-      "name": "End User",
-      "description": "Self-service access"
-    }
-  ]
+  "@ns": "http://prism.evolveum.com/xml/ns/public/types-3",
+  "object": {
+    "@type": "http://midpoint.evolveum.com/xml/ns/public/common/api-types-3#ObjectListType",
+    "object": [
+      {
+        "@type": "c:RoleType",
+        "oid": "11111111-1111-1111-1111-111111111111",
+        "name": "Superuser",
+        "displayName": "Superuser",
+        "description": "All privileges"
+      },
+      {
+        "@type": "c:RoleType",
+        "oid": "33333333-3333-3333-3333-333333333333",
+        "name": "End User",
+        "description": "Self-service access"
+      }
+    ]
+  }
 }
