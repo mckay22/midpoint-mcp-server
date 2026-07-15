@@ -1,0 +1,15 @@
+.git
+.github
+.gitignore
+.dockerignore
+Dockerfile
+dist
+bin
+*.exe
+*.test
+coverage.out
+*.prof
+README.md
+CHANGELOG.md
+PLAN.md
+CLAUDE.md

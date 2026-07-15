@@ -6,6 +6,28 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+### M4 — HTTP transport + packaging
+
+- `--http <addr>` runs the SDK's streamable HTTP transport at `/mcp` (stdio stays
+  the default). `--version` prints the build version.
+- **Safety rail (part of the milestone):** HTTP binds `127.0.0.1` by default and
+  *refuses to start* on any non-loopback address — there is no bypass flag.
+  HTTP mode has no per-request authentication yet (that is M4.5), so it must not
+  expose an unauthenticated network surface. In M4, HTTP is still personal mode
+  (the configured credentials' identity) over a different transport. The SDK's
+  built-in DNS-rebinding protection is left enabled.
+- `Dockerfile`: multi-stage build producing a static (`CGO_ENABLED=0`) binary on
+  `scratch`, with CA certificates copied in (for HTTPS to midPoint) and a
+  non-root user. `.dockerignore` trims the build context.
+- Release automation: `.github/workflows/release.yml` cross-builds static
+  binaries (linux/darwin/windows × amd64/arm64) on a `vX.Y.Z` tag and publishes
+  them with checksums to a GitHub release; `main.version` is injected via
+  `-ldflags`. `.github/workflows/ci.yml` runs gofmt/vet/tests on push and PR.
+- README: MCP client config snippets (Claude Desktop, VS Code), Docker usage, and
+  the HTTP transport with its loopback-only caveat.
+- Tests: address resolution / non-loopback refusal (table-driven) and an in-
+  process `/mcp` initialize smoke test. `go test ./...` green.
+
 ### M3 — requests & approvals (self-service)
 
 - Six tools: `request_role`, `list_my_requests`, `list_work_items`, `get_case`,

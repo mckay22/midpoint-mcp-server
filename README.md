@@ -7,8 +7,9 @@ manage users, roles, and resources through midPoint's REST API.
 
 > **Status: early development.** The tool surface below is the design target.
 > Implemented so far: `ping` (M0), the read tools (M1), the write tools with
-> their gate (M2), and self-service requests & approvals (M3). Transports beyond
-> stdio and packaging are still to come — watch releases.
+> their gate (M2), self-service requests & approvals (M3), and the
+> streamable-HTTP transport + packaging (M4). Per-user OIDC auth for shared HTTP
+> is next (M4.5).
 
 ## Configuration
 
@@ -21,6 +22,76 @@ Credentials are read from the environment at runtime (never written to disk):
 | `MIDPOINT_PASSWORD` | yes | password for that user |
 | `MIDPOINT_INSECURE_TLS` | no | `true` skips TLS verification — self-signed dev instances only |
 | `MIDPOINT_MCP_ALLOW_WRITES` | no | `true` enables the write tools; otherwise they return a dry-run preview |
+
+## Running
+
+The server speaks **stdio** by default (personal mode — it acts with the
+identity of the configured `MIDPOINT_*` credentials). Point your MCP client at
+the binary and pass the environment.
+
+### Claude Desktop
+
+In `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "midpoint": {
+      "command": "/path/to/midpoint-mcp-server",
+      "env": {
+        "MIDPOINT_URL": "https://localhost:8443/midpoint",
+        "MIDPOINT_USERNAME": "administrator",
+        "MIDPOINT_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+### VS Code
+
+In `.vscode/mcp.json` (or your user-level `mcp.json`):
+
+```json
+{
+  "servers": {
+    "midpoint": {
+      "command": "/path/to/midpoint-mcp-server",
+      "env": {
+        "MIDPOINT_URL": "https://localhost:8443/midpoint",
+        "MIDPOINT_USERNAME": "administrator",
+        "MIDPOINT_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+### Docker
+
+```sh
+docker build -t midpoint-mcp-server .
+docker run --rm -i \
+  -e MIDPOINT_URL=https://host:8443/midpoint \
+  -e MIDPOINT_USERNAME=administrator \
+  -e MIDPOINT_PASSWORD=your-password \
+  midpoint-mcp-server
+```
+
+The image is `scratch` plus the static binary and CA certificates, and runs as a
+non-root user. `-i` keeps stdin open for the stdio transport.
+
+### HTTP transport
+
+```sh
+midpoint-mcp-server --http :3001   # streamable transport at http://127.0.0.1:3001/mcp
+```
+
+**HTTP mode is loopback-only for now.** It binds `127.0.0.1` by default and
+*refuses to start* on any non-loopback address — it has no per-request
+authentication yet, so a network-reachable endpoint would let every caller act
+as the single configured identity. Per-user OAuth/OIDC for shared, multi-user
+HTTP is the next milestone (M4.5); use stdio until then.
 
 ## Tools
 
@@ -52,7 +123,8 @@ and the approval actions respect the write gate):
 
 - Single static binary (Go, official MCP SDK), no runtime dependencies
 - **stdio** transport by default — drops into Claude Desktop, VS Code, or any
-  MCP client config; **streamable HTTP** behind a flag for shared deployments
+  MCP client config; **streamable HTTP** via `--http` (loopback-only until
+  per-user auth lands)
 - Talks to midPoint's REST API (4.8+); credentials via environment variables,
   never written to disk
 - Write operations are off unless `MIDPOINT_MCP_ALLOW_WRITES=true` — an AI
@@ -65,6 +137,10 @@ and the approval actions respect the write gate):
 - `go test -tags=integration ./...` — additionally runs live tests against a
   real midPoint (e.g. a 4.10 docker container). Point it at an instance with the
   `MIDPOINT_*` variables above; it skips when they are unset.
+- CI (`.github/workflows/ci.yml`) runs `gofmt`, `go vet`, and the tests on every
+  push and PR. Pushing a `vX.Y.Z` tag triggers `release.yml`, which cross-builds
+  static binaries (linux/darwin/windows, amd64/arm64) and attaches them, with
+  checksums, to a GitHub release.
 
 ## License
 
