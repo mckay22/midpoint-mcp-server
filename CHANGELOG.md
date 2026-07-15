@@ -6,6 +6,16 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+### Known issues (found live-testing against midPoint 4.10.3, 2026-07-15)
+
+- `search_users` returns the correct count but **empty `name`/`oid` in
+  `structuredContent.users`**. Live repro: search for an existing user →
+  `{"count":1,"users":[{"name":"","oid":""}]}`. Likely cause: midPoint JSON
+  renders `name` as a **PolyString object** (`{"orig":"bob","norm":"bob"}`),
+  not a plain string — decode `orig` (and check every other PolyString-typed
+  field: `fullName`, `displayName`, role/resource names). `ping` is unaffected
+  (verified live); audit other read tools for the same decode gap.
+
 ### M5 — audit & reporting (read-only, query-driven)
 
 - `search_objects` — filtered search across users / roles / orgs / services /
