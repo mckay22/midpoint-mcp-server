@@ -63,6 +63,7 @@ func newMCPServer(client *midpoint.Client, cfg midpoint.Config) *mcp.Server {
 	registerReadTools(server, client)
 	registerWriteTools(server, client, cfg.AllowWrites)
 	registerRequestTools(server, client, cfg.AllowWrites)
+	registerAuditTools(server, client)
 	return server
 }
 

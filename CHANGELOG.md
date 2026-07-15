@@ -6,6 +6,31 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+### M5 — audit & reporting (read-only, query-driven)
+
+- `search_objects` — filtered search across users / roles / orgs / services /
+  shadows / resources using a raw midPoint query-language filter, returning
+  compact type-agnostic summaries. The building block for ad-hoc reports
+  (orphaned accounts, unused roles, disabled users with access, ...). Read-only
+  and, in resource-server mode, executed as the mapped user so midPoint enforces
+  that user's authorizations.
+- `search_audit` — audit-trail queries (time range + event type / outcome /
+  initiator / target / channel). **Experimental:** midPoint 4.10 exposes no REST
+  audit endpoint (verified against the full endpoints table) and the bulk
+  `search` action is objects-only, so this runs a server-side Groovy via the
+  `executeScript` RPC that searches audit containers and prints delimited
+  records. It requires script-execution authorization and therefore does not
+  work under resource-server (#proxy) impersonation; the embedded script is
+  isolated and may need per-version tuning, and the raw console is returned to
+  aid that. Both tools are read-only (outside the write gate).
+- No native report engine (its output lands on the server filesystem) and no
+  local read-model — reporting stays ephemeral and query-driven, per PLAN.md.
+- Tests: object-search routing/decoding + filter forwarding; executeScript
+  response parsing; audit console parsing, Groovy construction, and client-side
+  refinement; MCP round-trip for both tools. Live integration asserts
+  `search_objects`; `search_audit` integration is best-effort (skips when
+  script-exec is unavailable). `go test ./...` green.
+
 ## [0.1.0] - 2026-07-15
 
 First tagged release. Covers M0–M4.5: stdio + streamable-HTTP transports, the

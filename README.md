@@ -8,8 +8,8 @@ manage users, roles, and resources through midPoint's REST API.
 > **Status: early development.** The tool surface below is the design target.
 > Implemented so far: `ping` (M0), the read tools (M1), the write tools with
 > their gate (M2), self-service requests & approvals (M3), the streamable-HTTP
-> transport + packaging (M4), and OIDC resource-server identity for shared HTTP
-> (M4.5).
+> transport + packaging (M4), OIDC resource-server identity for shared HTTP
+> (M4.5), and query-driven reporting (M5).
 
 ## Configuration
 
@@ -148,6 +148,15 @@ and the approval actions respect the write gate):
 - `list_work_items` — your approval inbox
 - `get_case` — a case and its work items
 - `approve_work_item` / `reject_work_item` — decide a work item
+
+Reporting (**implemented**, read-only):
+
+- `search_objects` — filtered search across users/roles/orgs/services/shadows/
+  resources with a midPoint query-language filter (ad-hoc reports: orphaned
+  accounts, unused roles, ...)
+- `search_audit` — audit-trail queries. **Experimental:** midPoint 4.10 has no
+  REST audit endpoint, so this uses a server-side script and needs
+  script-execution authorization (and does not work under OIDC impersonation)
 
 ## Design
 

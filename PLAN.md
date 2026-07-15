@@ -80,6 +80,21 @@ product-neutral (midPoint + MCP only; no downstream deployment stories).
   AC against a live midPoint: assistant answers "every change to role X in the
   last 30 days" and "orphaned accounts on resource Y" end to end.
 
+  **Implemented 2026-07-15 (verification result):** midPoint 4.10 exposes **no
+  REST audit endpoint** (confirmed against the full endpoints table), and the
+  bulk `search` action is objects-only. So:
+  - `search_objects` — delivered as designed over users/roles/orgs/services/
+    shadows/resources (covers "orphaned accounts on resource Y"). Assignments
+    are reached via focus filters, not a separate container search.
+  - `search_audit` — delivered **best-effort/experimental** via the
+    `executeScript` RPC (a server-side Groovy that searches audit containers and
+    prints delimited records). It needs script-execution authorization and so
+    does **not** work under resource-server (#proxy) impersonation; the embedded
+    script is isolated and may need per-version tuning (raw console returned to
+    aid that). The executeScript plumbing + parsing are unit-tested; the audit
+    query itself is confirmed only against a live instance.
+  - No local read-model built — ephemeral, per the design decision above.
+
 ## Identity model (who is the caller?)
 
 Requests and approvals are only meaningful if midPoint sees the real human.

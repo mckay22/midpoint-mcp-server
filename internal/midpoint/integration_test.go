@@ -201,6 +201,51 @@ func TestIntegrationApprovalRoundTrip(t *testing.T) {
 	t.Logf("approval round-trip OK: role %s now assigned to %s", roleOID, userOID)
 }
 
+// TestIntegrationSearchObjects exercises the generic object search live.
+func TestIntegrationSearchObjects(t *testing.T) {
+	cfg, err := ConfigFromEnv()
+	if err != nil {
+		t.Skipf("skipping live integration test: %v", err)
+	}
+	c := NewClient(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	users, err := c.SearchObjects(ctx, "users", "", 10)
+	if err != nil {
+		t.Fatalf("SearchObjects(users): %v", err)
+	}
+	if len(users) == 0 {
+		t.Fatal("SearchObjects(users) returned nothing on a live midPoint")
+	}
+	if _, err := c.SearchObjects(ctx, "roles", "", 10); err != nil {
+		t.Fatalf("SearchObjects(roles): %v", err)
+	}
+	t.Logf("search_objects OK: %d user(s), e.g. %q", len(users), users[0].Name)
+}
+
+// TestIntegrationSearchAudit is best-effort: the audit path is experimental
+// (no REST endpoint; needs script-exec authorization), so it logs rather than
+// fails when the environment can't run it.
+func TestIntegrationSearchAudit(t *testing.T) {
+	cfg, err := ConfigFromEnv()
+	if err != nil {
+		t.Skipf("skipping live integration test: %v", err)
+	}
+	c := NewClient(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	res, err := c.SearchAudit(ctx, AuditQuery{Limit: 5})
+	if err != nil {
+		t.Skipf("search_audit (experimental) unavailable — likely no script-execution authorization: %v", err)
+	}
+	t.Logf("search_audit returned %d record(s), status=%q", len(res.Records), res.Status)
+	if len(res.Records) == 0 {
+		t.Logf("no records parsed; raw console follows for tuning:\n%s", res.Console)
+	}
+}
+
 func findOrCreateUser(ctx context.Context, t *testing.T, c *Client, name string) string {
 	t.Helper()
 	users, err := c.SearchUsers(ctx, SearchOptions{Query: name, Limit: 5})
