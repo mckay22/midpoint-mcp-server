@@ -6,6 +6,11 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-15
+
+Adds query-driven reporting (M5). **Ships with a known live-testing regression in
+the list/search tools — see below.**
+
 ### Known issues (found live-testing against midPoint 4.10.3, 2026-07-15)
 
 - `search_users` returns the correct count but **empty `name`/`oid` in
