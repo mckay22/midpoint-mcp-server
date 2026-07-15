@@ -34,9 +34,28 @@ product-neutral (midPoint + MCP only; no downstream deployment stories).
   Exact case/work-item REST endpoints verified against midPoint 4.10 during
   implementation. AC against a live midPoint: request → case opens attributed
   to the correct requester → approve via work item → assignment appears.
-- **M4 — HTTP transport + packaging**: `--http` streamable HTTP mode,
-  Dockerfile (scratch, static), GitHub release with binaries, MCP client
-  config snippets in README (Claude Desktop, VS Code).
+- **M4 — HTTP transport + packaging** (scoping decided 2026-07-15: transport
+  and packaging ONLY — OIDC identity is deliberately NOT in this milestone,
+  it is M4.5): `--http` streamable HTTP mode, Dockerfile (scratch, static),
+  GitHub release with binaries, MCP client config snippets in README (Claude
+  Desktop, VS Code). **Safety rails are part of the AC**: `--http` binds
+  `127.0.0.1` by default; binding any non-loopback address REFUSES to start
+  until resource-server auth exists (M4.5) — no flag to bypass. In M4, HTTP
+  mode is therefore still personal mode (local client, the configured
+  credentials' identity), just over a different transport. A release must
+  never contain an unauthenticated network surface.
+- **M4.5 — OIDC resource-server identity** (its own milestone on purpose:
+  token validation is security-critical and gets test-first discipline):
+  validate `Authorization: Bearer` against the configured issuer's JWKS
+  (`MIDPOINT_MCP_OIDC_ISSUER`, `MIDPOINT_MCP_OIDC_AUDIENCE`), map
+  `sub`→`externalId` (fallback `preferred_username`→`name`), execute per
+  request as the mapped user via `Switch-To-Principal` (service account holds
+  the archetype-filtered `#proxy` authorization — see Identity model below).
+  Non-loopback binding unlocks only when this is configured. AC against a
+  real Keycloak + midPoint: two different users' tokens → midPoint audit
+  attributes each call to the right human; unmapped/expired/wrong-audience
+  tokens refused; the M3 request/approval flows attribute correctly end to
+  end over HTTP.
 - **M5 — audit & reporting (read-only, query-driven)**: deliberately skip
   midPoint's native report engine — its CSV/HTML output lands on the server
   filesystem (a `reportData` `filePath`, not a downloadable stream), so it's
