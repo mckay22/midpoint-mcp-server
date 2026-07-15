@@ -37,6 +37,29 @@ product-neutral (midPoint + MCP only; no downstream deployment stories).
 - **M4 — HTTP transport + packaging**: `--http` streamable HTTP mode,
   Dockerfile (scratch, static), GitHub release with binaries, MCP client
   config snippets in README (Claude Desktop, VS Code).
+- **M5 — audit & reporting (read-only, query-driven)**: deliberately skip
+  midPoint's native report engine — its CSV/HTML output lands on the server
+  filesystem (a `reportData` `filePath`, not a downloadable stream), so it's
+  unreachable in shared HTTP mode. Instead build our own query/aggregation
+  layer over the REST search API:
+  - `search_audit` — audit-trail queries (time range, initiator, target, event
+    type, outcome, channel). Audit records are container values with no parent
+    object, so the exact REST search shape is verified against midPoint 4.10
+    during implementation (same discipline as M3's case endpoints).
+  - `search_objects` — filtered searches across users / roles / orgs /
+    assignments / shadows (midPoint query language) so the assistant can
+    compose ad-hoc reports: orphaned accounts, unused roles, assignments
+    expiring soon, disabled users still holding access, SoD conflicts.
+  - Optional local read-model: cache/index REST results to power heavier
+    aggregation and point-in-time snapshots. **Open design decision for M5:**
+    in-memory/ephemeral vs a persistent store. Persisting identity and audit
+    data at rest is a real security surface (public repo, IGA data) and adds a
+    sync/staleness burden — default to ephemeral, and only introduce
+    persistence if a concrete report genuinely requires it, documented in
+    CHANGELOG when it does.
+  - All read-only, so it stays outside the `MIDPOINT_MCP_ALLOW_WRITES` gate.
+  AC against a live midPoint: assistant answers "every change to role X in the
+  last 30 days" and "orphaned accounts on resource Y" end to end.
 
 ## Identity model (who is the caller?)
 
