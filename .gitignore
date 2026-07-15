@@ -1,0 +1,18 @@
+# Binaries
+/bin/
+/dist/
+*.exe
+*.test
+
+# Coverage & profiling
+coverage.out
+*.prof
+
+# Local state
+.env
+.env.*
+
+# Editor
+.idea/
+.vscode/
+*.swp
