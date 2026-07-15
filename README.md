@@ -11,6 +11,36 @@ manage users, roles, and resources through midPoint's REST API.
 > transport + packaging (M4), OIDC resource-server identity for shared HTTP
 > (M4.5), and query-driven reporting (M5).
 
+## Two modes: personal vs shared
+
+The server runs in one of two identity modes. **Most users want the first, and it
+needs no identity provider.**
+
+**Personal mode — stdio (the default).** You run the binary locally (Claude
+Desktop, VS Code, a script) with *your own* midPoint credentials. It acts to
+midPoint as you; midPoint sees you as you. No OAuth, no OIDC, no Keycloak — just
+`MIDPOINT_URL` + `MIDPOINT_USERNAME` + `MIDPOINT_PASSWORD`. This is the common
+case.
+
+**Resource-server mode — HTTP + OIDC (opt-in).** One shared server serves many
+people over the network, each authenticated by their own OAuth bearer token, and
+each request runs as the *real* human so approvals and audit attribute correctly.
+This is the only mode that needs an identity provider — and it is *any* OIDC
+provider (Keycloak, Okta, Entra / Azure AD, Auth0, …), not a specific one. You opt
+in by setting `MIDPOINT_MCP_OIDC_ISSUER` / `MIDPOINT_MCP_OIDC_AUDIENCE`; leave them
+unset and the OIDC code never runs.
+
+| You are… | You set | Transport | Identity provider |
+| --- | --- | --- | --- |
+| one person, your own machine | `MIDPOINT_URL` + your username/password | stdio (default) | **none** |
+| a team sharing one server | the above **+** `MIDPOINT_MCP_OIDC_ISSUER` / `_AUDIENCE` | `--http` | **any OIDC** |
+
+Why the split? A single shared server must know *which* human is behind each
+request, and it can't trust a caller to self-declare — there is deliberately no
+on-behalf-of tool argument — so it requires a signed token from an IdP the
+organization already runs. A local personal process has no such problem: it simply
+*is* one person with their own credentials. See [Running](#running) for both.
+
 ## Configuration
 
 Credentials are read from the environment at runtime (never written to disk):
