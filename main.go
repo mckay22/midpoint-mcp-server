@@ -37,6 +37,7 @@ func run() error {
 		Version: version,
 	}, nil)
 	registerPing(server, client)
+	registerReadTools(server, client)
 
 	// Protocol traffic owns stdout; diagnostics go to stderr.
 	log.SetOutput(os.Stderr)

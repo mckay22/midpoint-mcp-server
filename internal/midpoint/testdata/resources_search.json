@@ -1,0 +1,8 @@
+{
+  "object": {
+    "@type": "http://midpoint.evolveum.com/xml/ns/public/common/common-3#ResourceType",
+    "oid": "22222222-2222-2222-2222-222222222222",
+    "name": "OpenLDAP",
+    "description": "Corporate LDAP directory"
+  }
+}

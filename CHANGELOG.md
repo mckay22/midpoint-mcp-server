@@ -6,6 +6,31 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+### M1 — read tools
+
+- Seven read-only MCP tools: `search_users` (free-text over name/full
+  name/email, or exact OID), `get_user`, `get_user_assignments` (direct
+  assignments plus effective membership, each flagged direct or inherited),
+  `list_roles`, `get_role`, `list_resources`, `get_resource` (with connection
+  status where midPoint reports it). All return structured output plus a
+  human-readable line.
+- REST client extended with a generic request core (GET/POST, query options),
+  `POST /ws/rest/{type}/search` using midPoint's text query language, and
+  `GET /ws/rest/{type}/{oid}?options=resolveNames`. Tolerant decoding handles
+  midPoint's JSON quirks: PolyStrings as string or object, and single-element
+  collections serialized as a bare object instead of an array.
+- Search input is escaped into query-language string literals so a
+  caller-supplied value can't inject filter syntax; result sizes are capped
+  (default 20, max 100).
+- Table-driven tests against recorded REST fixtures (`internal/midpoint/testdata`)
+  covering search/get/list, the array/single-object envelope, direct-vs-inherited
+  membership, and the injection-escaping guard; plus an in-process MCP
+  round-trip test that drives every tool through the SDK (verifying input/output
+  schema validation, including empty arrays marshaling as `[]` not `null`).
+- Integration test (`-tags=integration`) against a live midPoint 4.10 container;
+  skips cleanly when `MIDPOINT_*` is unset, so a missing container is never a
+  failure. `go test ./...` green.
+
 ### M0 — scaffold
 
 - Go module `github.com/mckay22/midpoint-mcp-server` (Go 1.25; the MCP SDK

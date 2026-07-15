@@ -1,12 +1,14 @@
 package midpoint
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -49,7 +51,7 @@ type Identity struct {
 // credentials by calling GET /ws/rest/self. It is the connectivity/identity
 // check behind the ping tool.
 func (c *Client) Self(ctx context.Context) (Identity, error) {
-	body, err := c.get(ctx, "/self")
+	body, err := c.get(ctx, "/self", nil)
 	if err != nil {
 		return Identity{}, err
 	}
@@ -66,18 +68,38 @@ func (c *Client) Self(ctx context.Context) (Identity, error) {
 	}, nil
 }
 
-// get performs an authenticated GET against restPrefix+path and returns the
+// get performs an authenticated GET against restPrefix+path.
+func (c *Client) get(ctx context.Context, path string, query url.Values) ([]byte, error) {
+	return c.do(ctx, http.MethodGet, path, query, nil)
+}
+
+// post performs an authenticated POST with a JSON body.
+func (c *Client) post(ctx context.Context, path string, query url.Values, body []byte) ([]byte, error) {
+	return c.do(ctx, http.MethodPost, path, query, body)
+}
+
+// do issues an authenticated request against restPrefix+path and returns the
 // response body for any 2xx status. Errors carry the path and status but never
 // the credentials.
-func (c *Client) get(ctx context.Context, path string) ([]byte, error) {
-	url := strings.TrimRight(c.cfg.BaseURL, "/") + restPrefix + path
+func (c *Client) do(ctx context.Context, method, path string, query url.Values, body []byte) ([]byte, error) {
+	u := strings.TrimRight(c.cfg.BaseURL, "/") + restPrefix + path
+	if len(query) > 0 {
+		u += "?" + query.Encode()
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	var reqBody io.Reader
+	if body != nil {
+		reqBody = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("building request for %s: %w", path, err)
 	}
 	req.SetBasicAuth(c.cfg.Username, c.cfg.Password)
 	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -85,7 +107,7 @@ func (c *Client) get(ctx context.Context, path string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
 		return nil, fmt.Errorf("reading %s response: %w", path, err)
 	}
@@ -93,7 +115,7 @@ func (c *Client) get(ctx context.Context, path string) ([]byte, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("midPoint %s: unexpected status %s", path, resp.Status)
 	}
-	return body, nil
+	return respBody, nil
 }
 
 // selfResponse mirrors midPoint's JSON envelope for a focus object, which wraps

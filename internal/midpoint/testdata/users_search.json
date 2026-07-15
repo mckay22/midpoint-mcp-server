@@ -1,0 +1,20 @@
+{
+  "object": [
+    {
+      "@type": "http://midpoint.evolveum.com/xml/ns/public/common/common-3#UserType",
+      "oid": "00000000-0000-0000-0000-000000000001",
+      "name": "jdoe",
+      "fullName": "Jane Doe",
+      "emailAddress": "jane.doe@example.com",
+      "activation": { "effectiveStatus": "enabled" }
+    },
+    {
+      "@type": "http://midpoint.evolveum.com/xml/ns/public/common/common-3#UserType",
+      "oid": "00000000-0000-0000-0000-000000000002",
+      "name": { "orig": "asmith", "norm": "asmith" },
+      "fullName": { "orig": "Alice Smith", "norm": "alice smith" },
+      "emailAddress": "alice.smith@example.com",
+      "activation": { "effectiveStatus": "disabled" }
+    }
+  ]
+}

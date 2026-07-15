@@ -1,0 +1,10 @@
+{
+  "role": {
+    "oid": "11111111-1111-1111-1111-111111111111",
+    "name": "Superuser",
+    "displayName": "Superuser",
+    "description": "All privileges",
+    "identifier": "superuser",
+    "riskLevel": "high"
+  }
+}

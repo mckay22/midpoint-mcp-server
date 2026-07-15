@@ -1,0 +1,56 @@
+{
+  "user": {
+    "oid": "00000000-0000-0000-0000-000000000001",
+    "name": "jdoe",
+    "givenName": "Jane",
+    "familyName": "Doe",
+    "fullName": "Jane Doe",
+    "emailAddress": "jane.doe@example.com",
+    "activation": { "administrativeStatus": "enabled", "effectiveStatus": "enabled" },
+    "assignment": [
+      {
+        "@id": 1,
+        "targetRef": {
+          "oid": "11111111-1111-1111-1111-111111111111",
+          "relation": "org:default",
+          "type": "c:RoleType",
+          "targetName": "Superuser"
+        },
+        "activation": { "effectiveStatus": "enabled" }
+      },
+      {
+        "@id": 2,
+        "subtype": "account",
+        "construction": {
+          "resourceRef": {
+            "oid": "22222222-2222-2222-2222-222222222222",
+            "relation": "org:default",
+            "type": "c:ResourceType",
+            "targetName": "OpenLDAP"
+          }
+        },
+        "activation": { "effectiveStatus": "enabled" }
+      }
+    ],
+    "roleMembershipRef": [
+      {
+        "oid": "11111111-1111-1111-1111-111111111111",
+        "relation": "org:default",
+        "type": "c:RoleType",
+        "targetName": "Superuser"
+      },
+      {
+        "oid": "33333333-3333-3333-3333-333333333333",
+        "relation": "org:default",
+        "type": "c:RoleType",
+        "targetName": "End User"
+      },
+      {
+        "oid": "44444444-4444-4444-4444-444444444444",
+        "relation": "org:default",
+        "type": "c:OrgType",
+        "targetName": "IT Department"
+      }
+    ]
+  }
+}

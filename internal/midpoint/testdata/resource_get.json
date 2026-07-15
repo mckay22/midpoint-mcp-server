@@ -1,0 +1,14 @@
+{
+  "resource": {
+    "oid": "22222222-2222-2222-2222-222222222222",
+    "name": "OpenLDAP",
+    "description": "Corporate LDAP directory",
+    "lifecycleState": "active",
+    "connectorRef": {
+      "oid": "99999999-9999-9999-9999-999999999999",
+      "type": "c:ConnectorType",
+      "targetName": "ICF LDAP Connector"
+    },
+    "operationalState": { "lastAvailabilityStatus": "up" }
+  }
+}
