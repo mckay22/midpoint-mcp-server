@@ -16,6 +16,8 @@ package midpoint
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -111,6 +113,92 @@ func TestIntegrationWriteRoundTrip(t *testing.T) {
 		t.Fatalf("after enable, status = %q, want enabled", got)
 	}
 	t.Logf("disable→enable round-trip OK for %s (%s)", name, oid)
+}
+
+// TestIntegrationApprovalRoundTrip drives the M3 acceptance flow against a live
+// midPoint: request a role → an approval case opens → approve the work item →
+// the assignment appears on the user. It needs a role guarded by an approval
+// policy (and the caller able to approve it), so it runs only when both the
+// write gate and MIDPOINT_IT_APPROVAL_ROLE_OID are set.
+func TestIntegrationApprovalRoundTrip(t *testing.T) {
+	cfg, err := ConfigFromEnv()
+	if err != nil {
+		t.Skipf("skipping live integration test: %v", err)
+	}
+	if !cfg.AllowWrites {
+		t.Skipf("skipping approval round-trip: set %s=true to run", EnvAllowWrites)
+	}
+	roleOID := strings.TrimSpace(os.Getenv("MIDPOINT_IT_APPROVAL_ROLE_OID"))
+	if roleOID == "" {
+		t.Skip("skipping approval round-trip: set MIDPOINT_IT_APPROVAL_ROLE_OID to an approval-guarded role")
+	}
+
+	c := NewClient(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	userOID := findOrCreateUser(ctx, t, c, "mcp-it-approval-user")
+
+	// Request the role for the test user (the requester is our authenticated self).
+	reqPlan, err := c.PlanRequestRole(userOID, roleOID)
+	if err != nil {
+		t.Fatalf("PlanRequestRole: %v", err)
+	}
+	if _, err := c.Apply(ctx, reqPlan); err != nil {
+		t.Fatalf("requesting role: %v", err)
+	}
+
+	// The case is created asynchronously; poll briefly.
+	var caseOID string
+	for i := 0; i < 15 && caseOID == ""; i++ {
+		caseOID = c.FindRequestCase(ctx, userOID, roleOID)
+		if caseOID == "" {
+			time.Sleep(time.Second)
+		}
+	}
+	if caseOID == "" {
+		t.Skipf("no approval case opened for role %s — is it guarded by an approval policy?", roleOID)
+	}
+	t.Logf("approval case opened: %s", caseOID)
+
+	detail, err := c.GetCase(ctx, caseOID)
+	if err != nil {
+		t.Fatalf("GetCase: %v", err)
+	}
+	if len(detail.WorkItems) == 0 {
+		t.Fatalf("case %s has no work items", caseOID)
+	}
+
+	// Approve the first work item.
+	appPlan, err := c.PlanCompleteWorkItem(caseOID, detail.WorkItems[0].ID, true, "approved by integration test")
+	if err != nil {
+		t.Fatalf("PlanCompleteWorkItem: %v", err)
+	}
+	if _, err := c.Apply(ctx, appPlan); err != nil {
+		t.Fatalf("approving work item: %v", err)
+	}
+
+	// After approval the assignment should materialize; poll briefly.
+	assigned := false
+	for i := 0; i < 15 && !assigned; i++ {
+		asg, err := c.GetUserAssignments(ctx, userOID)
+		if err != nil {
+			t.Fatalf("GetUserAssignments: %v", err)
+		}
+		for _, m := range asg.Effective {
+			if m.OID == roleOID {
+				assigned = true
+				break
+			}
+		}
+		if !assigned {
+			time.Sleep(time.Second)
+		}
+	}
+	if !assigned {
+		t.Fatalf("role %s did not appear on user %s after approval", roleOID, userOID)
+	}
+	t.Logf("approval round-trip OK: role %s now assigned to %s", roleOID, userOID)
 }
 
 func findOrCreateUser(ctx context.Context, t *testing.T, c *Client, name string) string {

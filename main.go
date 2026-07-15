@@ -39,6 +39,7 @@ func run() error {
 	registerPing(server, client)
 	registerReadTools(server, client)
 	registerWriteTools(server, client, cfg.AllowWrites)
+	registerRequestTools(server, client, cfg.AllowWrites)
 
 	// Protocol traffic owns stdout; diagnostics go to stderr.
 	log.SetOutput(os.Stderr)

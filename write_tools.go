@@ -31,26 +31,38 @@ type writeOutput struct {
 	Result   string `json:"result,omitempty"`
 }
 
-// runWrite applies the gate: preview when writes are disabled, otherwise apply.
-func runWrite(ctx context.Context, allowWrites bool, client *midpoint.Client, plan midpoint.Plan) (*mcp.CallToolResult, writeOutput, error) {
+// previewWrite renders a plan as a dry-run preview (used when the write gate is
+// closed).
+func previewWrite(plan midpoint.Plan) (*mcp.CallToolResult, writeOutput) {
 	out := writeOutput{
+		DryRun:   true,
 		Summary:  plan.Summary,
 		Method:   plan.Method,
 		Endpoint: plan.Endpoint(),
 		Body:     plan.Body,
 	}
+	return text(fmt.Sprintf("DRY RUN — writes disabled. Would %s via %s %s.\nSet %s=true to apply.",
+		plan.Summary, plan.Method, plan.Endpoint(), midpoint.EnvAllowWrites)), out
+}
 
+// runWrite applies the gate: preview when writes are disabled, otherwise apply.
+func runWrite(ctx context.Context, allowWrites bool, client *midpoint.Client, plan midpoint.Plan) (*mcp.CallToolResult, writeOutput, error) {
 	if !allowWrites {
-		out.DryRun = true
-		return text(fmt.Sprintf("DRY RUN — writes disabled. Would %s via %s %s.\nSet %s=true to apply.",
-			plan.Summary, plan.Method, plan.Endpoint(), midpoint.EnvAllowWrites)), out, nil
+		res, out := previewWrite(plan)
+		return res, out, nil
 	}
 
 	res, err := client.Apply(ctx, plan)
 	if err != nil {
 		return nil, writeOutput{}, err
 	}
-	out.Applied = true
+	out := writeOutput{
+		Applied:  true,
+		Summary:  plan.Summary,
+		Method:   plan.Method,
+		Endpoint: plan.Endpoint(),
+		Body:     plan.Body,
+	}
 	if res.OID != "" {
 		out.Result = "oid=" + res.OID
 	} else {

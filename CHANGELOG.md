@@ -6,6 +6,34 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+### M3 — requests & approvals (self-service)
+
+- Six tools: `request_role`, `list_my_requests`, `list_work_items`, `get_case`,
+  `approve_work_item`, `reject_work_item`.
+- `request_role` submits an assignment-add delta on the target user (defaults to
+  the authenticated user); midPoint policy decides whether it executes directly
+  or opens an approval **case**. The requester identity is always the
+  authenticated principal — midPoint sets `requestorRef`; the tool never accepts
+  an on-behalf-of requester. After applying, it best-effort surfaces the created
+  case oid.
+- `list_my_requests` scopes cases to `requestorRef` = self; `list_work_items` is
+  the caller's inbox — open cases where `workItem/assigneeRef` = self, returning
+  only the caller's still-open work items. Both resolve the caller via
+  `/ws/rest/self`, so identity comes from the credentials, not from arguments.
+- `approve_work_item` / `reject_work_item` complete a work item via
+  `POST /ws/rest/cases/{oid}/workItems/{id}/complete` with the approval-outcome
+  URI; both respect the write gate (dry-run preview when off), as does
+  `request_role`.
+- REST verified against the 4.10 docs: cases `GET`/`POST …/search`,
+  work-item `…/complete` (204). Note: an older support-4.10 example page still
+  flags work-item completion as unimplemented (MID-6067), but the current cases
+  endpoint reference documents it; the integration test is the live check.
+- Tests: fixture-based decoding of cases/work-items (incl. inbox filtering to
+  self + open items), request/complete delta correctness, MCP round-trip and
+  gate on/off proofs. Integration test extended with the full request → case →
+  approve → assignment-appears flow (opt-in via `MIDPOINT_IT_APPROVAL_ROLE_OID`).
+  `go test ./...` green.
+
 ### M2 — write tools + gate
 
 - Six write tools: `create_user`, `enable_user`, `disable_user`, `assign_role`,

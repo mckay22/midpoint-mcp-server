@@ -6,9 +6,9 @@ governance operations as MCP tools so AI assistants can query and (optionally)
 manage users, roles, and resources through midPoint's REST API.
 
 > **Status: early development.** The tool surface below is the design target.
-> Implemented so far: `ping` (M0), the full read tool set (M1), and the write
-> tools with their gate (M2). Transports beyond stdio and packaging are still to
-> come — watch releases.
+> Implemented so far: `ping` (M0), the read tools (M1), the write tools with
+> their gate (M2), and self-service requests & approvals (M3). Transports beyond
+> stdio and packaging are still to come — watch releases.
 
 ## Configuration
 
@@ -37,6 +37,16 @@ each returns a dry-run preview of the exact request it would send):
 - `create_user`, `enable_user`, `disable_user`
 - `assign_role`, `unassign_role`
 - `recompute_user` — trigger midPoint's recompute after changes
+
+Requests & approvals (**implemented**; reads are always available, `request_role`
+and the approval actions respect the write gate):
+
+- `request_role` — self-service role request (routed through midPoint's approval
+  policy when one applies)
+- `list_my_requests` — approval cases you initiated
+- `list_work_items` — your approval inbox
+- `get_case` — a case and its work items
+- `approve_work_item` / `reject_work_item` — decide a work item
 
 ## Design
 

@@ -194,6 +194,12 @@ func (c *Client) getObject(ctx context.Context, collection, oid string, resolveN
 // searchRaw POSTs a text-filter search (empty filter = match all) with a paging
 // cap and returns the raw matched objects.
 func (c *Client) searchRaw(ctx context.Context, collection, filterText string, limit int) ([]json.RawMessage, error) {
+	return c.searchRawOpts(ctx, collection, filterText, limit, false)
+}
+
+// searchRawOpts is searchRaw with an optional resolveNames request so returned
+// references carry their targetName.
+func (c *Client) searchRawOpts(ctx context.Context, collection, filterText string, limit int, resolveNames bool) ([]json.RawMessage, error) {
 	req := searchRequest{}
 	req.Query.Paging = &searchPaging{MaxSize: clampLimit(limit)}
 	if filterText != "" {
@@ -204,7 +210,11 @@ func (c *Client) searchRaw(ctx context.Context, collection, filterText string, l
 		return nil, err
 	}
 
-	respBody, err := c.post(ctx, "/"+collection+"/search", nil, body)
+	var query url.Values
+	if resolveNames {
+		query = url.Values{"options": {"resolveNames"}}
+	}
+	respBody, err := c.post(ctx, "/"+collection+"/search", query, body)
 	if err != nil {
 		return nil, err
 	}
