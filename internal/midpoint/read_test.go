@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -186,6 +187,22 @@ func TestListRoles(t *testing.T) {
 	}
 	if roles[0].DisplayName != "Superuser" || roles[0].Description != "All privileges" {
 		t.Errorf("roles[0] = %+v", roles[0])
+	}
+}
+
+func TestListRequestableRoles(t *testing.T) {
+	c, reqs := newTestClient(t)
+
+	roles, err := c.ListRequestableRoles(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("ListRequestableRoles: %v", err)
+	}
+	if len(roles) != 2 {
+		t.Fatalf("got %d roles, want 2", len(roles))
+	}
+	// The request must carry the requestable filter (that's the whole point).
+	if body := lastRequest(t, reqs).body; !strings.Contains(body, "requestable = true") {
+		t.Errorf("search body missing requestable filter: %s", body)
 	}
 }
 

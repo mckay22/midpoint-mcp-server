@@ -6,6 +6,19 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+### Added
+
+- **`list_requestable_roles`** — self-service catalog query: the roles the
+  authenticated user can request. Searches roles flagged `requestable = true`,
+  executed as the calling identity, so in resource-server mode midPoint filters
+  results to what that user is authorized to see (requestable-and-visible). It
+  completes the self-service loop already provided by `request_role`,
+  `list_my_requests`, `list_work_items`, and the approval actions. Read-only
+  (outside the write gate); verified live against 4.10.3. (Exact `#assign`
+  eligibility via `getAssignableRoleSpecification` was considered but needs the
+  script path, which — like `search_audit` — can't run under OIDC impersonation;
+  the requestable-and-visible approximation was chosen deliberately.)
+
 ### Fixed
 
 - **`search_audit` now works against a live midPoint 4.10** (previously HTTP 500,

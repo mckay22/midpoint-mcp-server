@@ -172,6 +172,9 @@ each returns a dry-run preview of the exact request it would send):
 Requests & approvals (**implemented**; reads are always available, `request_role`
 and the approval actions respect the write gate):
 
+- `list_requestable_roles` — the roles you can request: those flagged
+  `requestable` in the catalog, filtered to what you're authorized to see (runs
+  as you, so it works per-user in resource-server mode)
 - `request_role` — self-service role request (routed through midPoint's approval
   policy when one applies)
 - `list_my_requests` — approval cases you initiated

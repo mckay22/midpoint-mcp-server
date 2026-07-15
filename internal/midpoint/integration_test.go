@@ -201,6 +201,30 @@ func TestIntegrationApprovalRoundTrip(t *testing.T) {
 	t.Logf("approval round-trip OK: role %s now assigned to %s", roleOID, userOID)
 }
 
+// TestIntegrationListRequestableRoles exercises the self-service catalog query
+// live. A clean instance may have zero requestable roles, so it asserts the call
+// succeeds and any returned roles decode with populated fields — not a count.
+func TestIntegrationListRequestableRoles(t *testing.T) {
+	cfg, err := ConfigFromEnv()
+	if err != nil {
+		t.Skipf("skipping live integration test: %v", err)
+	}
+	c := NewClient(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	roles, err := c.ListRequestableRoles(ctx, 50)
+	if err != nil {
+		t.Fatalf("ListRequestableRoles: %v", err)
+	}
+	for i, r := range roles {
+		if r.OID == "" || r.Name == "" {
+			t.Errorf("requestable role %d has empty oid/name: %+v", i, r)
+		}
+	}
+	t.Logf("list_requestable_roles returned %d role(s)", len(roles))
+}
+
 // TestIntegrationSearchObjects exercises the generic object search live.
 func TestIntegrationSearchObjects(t *testing.T) {
 	cfg, err := ConfigFromEnv()

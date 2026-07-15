@@ -34,6 +34,11 @@ product-neutral (midPoint + MCP only; no downstream deployment stories).
   Exact case/work-item REST endpoints verified against midPoint 4.10 during
   implementation. AC against a live midPoint: request → case opens attributed
   to the correct requester → approve via work item → assignment appears.
+  **Extended (Unreleased):** `list_requestable_roles` closes the loop's front
+  door — searches `requestable = true` roles as the calling user (so midPoint's
+  read authorization filters to the requestable-and-visible set). Exact `#assign`
+  eligibility (`getAssignableRoleSpecification`) was rejected: it needs the
+  script path, unavailable under OIDC impersonation (same limit as `search_audit`).
 - **M4 — HTTP transport + packaging** (scoping decided 2026-07-15: transport
   and packaging ONLY — OIDC identity is deliberately NOT in this milestone,
   it is M4.5): `--http` streamable HTTP mode, Dockerfile (scratch, static),

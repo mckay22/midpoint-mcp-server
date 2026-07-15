@@ -12,12 +12,37 @@ import (
 // registerRequestTools installs the M3 requests & approvals tools. The mutating
 // ones (request_role, approve/reject) respect the write gate.
 func registerRequestTools(server *mcp.Server, client *midpoint.Client, allowWrites bool) {
+	registerListRequestableRoles(server, client)
 	registerRequestRole(server, client, allowWrites)
 	registerListMyRequests(server, client)
 	registerListWorkItems(server, client)
 	registerGetCase(server, client)
 	registerCompleteWorkItem(server, client, allowWrites, true)
 	registerCompleteWorkItem(server, client, allowWrites, false)
+}
+
+// --- list_requestable_roles ---
+
+type listRequestableRolesOutput struct {
+	Roles []midpoint.RoleSummary `json:"roles"`
+	Count int                    `json:"count"`
+}
+
+func registerListRequestableRoles(server *mcp.Server, client *midpoint.Client) {
+	mcp.AddTool(server, &mcp.Tool{
+		Name:  "list_requestable_roles",
+		Title: "List requestable roles",
+		Description: "List the roles the authenticated user can request (self-service): roles flagged " +
+			"requestable in midPoint's catalog, filtered to what that user is authorized to see. Pair with " +
+			"request_role to submit one, then list_my_requests / list_work_items to track approval.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in limitInput) (*mcp.CallToolResult, listRequestableRolesOutput, error) {
+		roles, err := client.ListRequestableRoles(ctx, in.Limit)
+		if err != nil {
+			return nil, listRequestableRolesOutput{}, err
+		}
+		return text(fmt.Sprintf("Found %d requestable role(s).", len(roles))),
+			listRequestableRolesOutput{Roles: roles, Count: len(roles)}, nil
+	})
 }
 
 // --- request_role ---

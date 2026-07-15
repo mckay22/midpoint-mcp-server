@@ -117,7 +117,21 @@ func (c *Client) GetUserAssignments(ctx context.Context, oid string) (UserAssign
 
 // ListRoles returns up to limit roles.
 func (c *Client) ListRoles(ctx context.Context, limit int) ([]RoleSummary, error) {
-	raws, err := c.searchRaw(ctx, collRoles, "", limit)
+	return c.listRoles(ctx, "", limit)
+}
+
+// ListRequestableRoles returns up to limit roles marked requestable (offered in
+// midPoint's request catalog). It runs as the calling identity, so in
+// resource-server mode midPoint returns only the roles that user is authorized to
+// see — the requestable-and-visible set they can self-request.
+func (c *Client) ListRequestableRoles(ctx context.Context, limit int) ([]RoleSummary, error) {
+	return c.listRoles(ctx, "requestable = true", limit)
+}
+
+// listRoles searches the role collection with an optional text filter (empty =
+// all) and returns compact summaries.
+func (c *Client) listRoles(ctx context.Context, filter string, limit int) ([]RoleSummary, error) {
+	raws, err := c.searchRaw(ctx, collRoles, filter, limit)
 	if err != nil {
 		return nil, err
 	}
