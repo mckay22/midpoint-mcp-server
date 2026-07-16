@@ -61,6 +61,17 @@ product-neutral (midPoint + MCP only; no downstream deployment stories).
   attributes each call to the right human; unmapped/expired/wrong-audience
   tokens refused; the M3 request/approval flows attribute correctly end to
   end over HTTP.
+
+  **Verified live 2026-07-16** (real Keycloak + midPoint 4.10.3, via the
+  build-tagged `TestLiveOIDCResourceServer`): no token → refused; a valid
+  token for a user present in the IdP but not midPoint → correlation fails →
+  refused; a mapped user's token → `ping` runs as that user via
+  `Switch-To-Principal` (IdP `preferred_username` → midPoint identity, not the
+  service account). Two environment prerequisites confirmed necessary: the IdP
+  must emit the expected `aud` (Keycloak needs an audience mapper — the audience
+  check is not relaxed to `azp`), and the REST service account needs the
+  `authorization-rest-3#proxy` action (the model `#all` of superuser does NOT
+  include it) scoped to the users it may impersonate.
 - **M5 — audit & reporting (read-only, query-driven)**: deliberately skip
   midPoint's native report engine — its CSV/HTML output lands on the server
   filesystem (a `reportData` `filePath`, not a downloadable stream), so it's
