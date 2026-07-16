@@ -54,6 +54,8 @@ Credentials are read from the environment at runtime (never written to disk):
 | `MIDPOINT_MCP_ALLOW_WRITES` | no | `true` enables the write tools; otherwise they return a dry-run preview |
 | `MIDPOINT_MCP_OIDC_ISSUER` | no | OIDC issuer URL; enables resource-server mode for HTTP (must be set with the audience) |
 | `MIDPOINT_MCP_OIDC_AUDIENCE` | no | expected token audience for resource-server mode |
+| `MIDPOINT_MCP_OIDC_CORRELATION_CLAIM` | no | token claim matched to a midPoint user (default `preferred_username`); see [docs](docs/identity-providers.md#requirement-2--correlation-which-midpoint-user-is-this) |
+| `MIDPOINT_MCP_OIDC_CORRELATION_ATTRIBUTE` | no | midPoint attribute the claim is matched against (default `name`) |
 
 In resource-server mode, `MIDPOINT_USERNAME`/`MIDPOINT_PASSWORD` are the **service
 account** — it authenticates the server to midPoint and must hold the

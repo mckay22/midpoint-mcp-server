@@ -62,6 +62,13 @@ func authenticatorFor(s *signer) *Authenticator {
 	return &Authenticator{verifier: v}
 }
 
+// authenticatorForClaim is authenticatorFor with a custom correlation claim.
+func authenticatorForClaim(s *signer, claim string) *Authenticator {
+	a := authenticatorFor(s)
+	a.correlationClaim = claim
+	return a
+}
+
 func baseClaims() map[string]any {
 	return map[string]any{
 		"iss":                testIssuer,
@@ -81,12 +88,54 @@ func TestVerifyValidToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
-	if claims.Subject != "user-sub-123" || claims.PreferredUsername != "jdoe" {
+	if claims.Subject != "user-sub-123" || claims.CorrelationValue != "jdoe" {
 		t.Errorf("claims = %+v", claims)
 	}
 	if claims.Expiry.Before(time.Now()) {
 		t.Errorf("expiry = %v, want future", claims.Expiry)
 	}
+}
+
+func TestVerifyCustomCorrelationClaim(t *testing.T) {
+	s := newSigner(t)
+
+	t.Run("string claim", func(t *testing.T) {
+		a := authenticatorForClaim(s, "email")
+		c := baseClaims()
+		c["email"] = "jane@example.com"
+		claims, err := a.Verify(context.Background(), s.mint(t, c))
+		if err != nil {
+			t.Fatalf("Verify: %v", err)
+		}
+		// preferred_username must be ignored in favor of the configured claim.
+		if claims.CorrelationValue != "jane@example.com" {
+			t.Errorf("CorrelationValue = %q, want the email claim", claims.CorrelationValue)
+		}
+	})
+
+	t.Run("numeric claim is stringified", func(t *testing.T) {
+		a := authenticatorForClaim(s, "employeeNumber")
+		c := baseClaims()
+		c["employeeNumber"] = 40277
+		claims, err := a.Verify(context.Background(), s.mint(t, c))
+		if err != nil {
+			t.Fatalf("Verify: %v", err)
+		}
+		if claims.CorrelationValue != "40277" {
+			t.Errorf("CorrelationValue = %q, want \"40277\"", claims.CorrelationValue)
+		}
+	})
+
+	t.Run("absent claim yields empty", func(t *testing.T) {
+		a := authenticatorForClaim(s, "does_not_exist")
+		claims, err := a.Verify(context.Background(), s.mint(t, baseClaims()))
+		if err != nil {
+			t.Fatalf("Verify: %v", err)
+		}
+		if claims.CorrelationValue != "" {
+			t.Errorf("CorrelationValue = %q, want empty", claims.CorrelationValue)
+		}
+	})
 }
 
 func TestVerifyRejectsBadTokens(t *testing.T) {

@@ -8,6 +8,17 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ### Added
 
+- **Configurable OIDC correlation** — two new env vars,
+  `MIDPOINT_MCP_OIDC_CORRELATION_CLAIM` (default `preferred_username`) and
+  `MIDPOINT_MCP_OIDC_CORRELATION_ATTRIBUTE` (default `name`), let a deployment map
+  a token to a midPoint user by any claim/attribute (e.g. `email`→`emailAddress`,
+  Entra `oid`→a stable id, an employee number). The `sub`→`externalId` match still
+  runs first; these customize only the fallback. Numeric claims are stringified;
+  the attribute is validated as a plain query path at startup (injection guard).
+  Verified live against Keycloak + midPoint 4.10.3: `email`→`emailAddress`
+  impersonates the mapped user, and a deliberately-wrong pairing refuses (proving
+  the configured claim value is the key, with no silent `preferred_username`
+  fallback). Default behavior is unchanged.
 - **Docs: `docs/identity-providers.md`** — a provider-agnostic guide to
   resource-server mode: the resource-server model (why the server needs no client
   secret), the audience requirement, token→midPoint correlation, the service

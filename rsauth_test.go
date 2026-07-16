@@ -160,7 +160,7 @@ func connectResourceServer(t *testing.T, oidc *mockOIDCProvider, mp *recordingMi
 		OIDCAudience: e2eAudience,
 	}
 	client := midpoint.NewClient(cfg)
-	authn, err := oidcauth.New(ctx, cfg.OIDCIssuer, cfg.OIDCAudience)
+	authn, err := oidcauth.New(ctx, cfg.OIDCIssuer, cfg.OIDCAudience, cfg.OIDCCorrelationClaim)
 	if err != nil {
 		t.Fatalf("oidcauth.New: %v", err)
 	}

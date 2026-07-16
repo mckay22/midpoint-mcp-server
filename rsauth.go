@@ -16,16 +16,18 @@ import (
 const principalClaimKey = "midpointOID"
 
 // bearerVerifier verifies an OAuth bearer token and correlates it to a midPoint
-// user. Any failure returns an ErrInvalidToken-wrapped error, which the SDK
-// surfaces as a 401. The verify + correlation run as the service account (no
-// principal in the context), which is exactly the identity that holds #proxy.
-func bearerVerifier(authn *oidcauth.Authenticator, client *midpoint.Client) sdkauth.TokenVerifier {
+// user. correlationAttribute is the midPoint attribute the token's correlation
+// claim is matched against ("" = the default, name). Any failure returns an
+// ErrInvalidToken-wrapped error, which the SDK surfaces as a 401. The verify +
+// correlation run as the service account (no principal in the context), which is
+// exactly the identity that holds #proxy.
+func bearerVerifier(authn *oidcauth.Authenticator, client *midpoint.Client, correlationAttribute string) sdkauth.TokenVerifier {
 	return func(ctx context.Context, token string, _ *http.Request) (*sdkauth.TokenInfo, error) {
 		claims, err := authn.Verify(ctx, token)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", sdkauth.ErrInvalidToken, err)
 		}
-		oid, err := client.CorrelateUser(ctx, claims.Subject, claims.PreferredUsername)
+		oid, err := client.CorrelateUser(ctx, claims.Subject, claims.CorrelationValue, correlationAttribute)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", sdkauth.ErrInvalidToken, err)
 		}

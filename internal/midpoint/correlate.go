@@ -6,22 +6,36 @@ import (
 	"fmt"
 )
 
+// DefaultCorrelationAttribute is the midPoint attribute the correlation value is
+// matched against when a deployment does not configure one.
+const DefaultCorrelationAttribute = "name"
+
 // CorrelateUser maps an OIDC identity to a midPoint user OID. It first tries the
-// token subject against the user's externalId, then falls back to the
-// preferred_username against the user's name. The externalId attempt is
-// best-effort: if a deployment's schema has no externalId path the search may
-// error, in which case correlation falls through to the name match.
+// token subject against the user's externalId, then falls back to matching
+// correlationValue against correlationAttribute (defaulting to the user's name).
+// The externalId attempt is best-effort: if a deployment's schema has no
+// externalId path the search may error, in which case correlation falls through
+// to the attribute match.
+//
+// correlationValue is whichever token claim the deployment correlates on
+// (preferred_username by default); correlationAttribute is the midPoint attribute
+// that holds it (name by default). The attribute is interpolated into the query
+// filter, so callers must pass a validated path — see ValidCorrelationAttribute.
 //
 // This is how resource-server mode resolves "who is the human behind this
 // token"; the resulting OID is the Switch-To-Principal target.
-func (c *Client) CorrelateUser(ctx context.Context, subject, preferredUsername string) (string, error) {
+func (c *Client) CorrelateUser(ctx context.Context, subject, correlationValue, correlationAttribute string) (string, error) {
+	attr := correlationAttribute
+	if attr == "" {
+		attr = DefaultCorrelationAttribute
+	}
 	if subject != "" {
 		if oid, err := c.uniqueUserByFilter(ctx, fmt.Sprintf("externalId = %s", quoteQueryString(subject))); err == nil && oid != "" {
 			return oid, nil
 		}
 	}
-	if preferredUsername != "" {
-		oid, err := c.uniqueUserByFilter(ctx, fmt.Sprintf("name = %s", quoteQueryString(preferredUsername)))
+	if correlationValue != "" {
+		oid, err := c.uniqueUserByFilter(ctx, fmt.Sprintf("%s = %s", attr, quoteQueryString(correlationValue)))
 		if err != nil {
 			return "", err
 		}
@@ -29,7 +43,7 @@ func (c *Client) CorrelateUser(ctx context.Context, subject, preferredUsername s
 			return oid, nil
 		}
 	}
-	return "", fmt.Errorf("no midPoint user matches subject=%q preferred_username=%q", subject, preferredUsername)
+	return "", fmt.Errorf("no midPoint user matches subject=%q %s=%q", subject, attr, correlationValue)
 }
 
 // uniqueUserByFilter returns the OID of the single user matching filter, "" if

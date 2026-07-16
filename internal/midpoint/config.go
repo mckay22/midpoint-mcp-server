@@ -18,6 +18,11 @@ const (
 	EnvAllowWrites  = "MIDPOINT_MCP_ALLOW_WRITES"
 	EnvOIDCIssuer   = "MIDPOINT_MCP_OIDC_ISSUER"
 	EnvOIDCAudience = "MIDPOINT_MCP_OIDC_AUDIENCE"
+	// EnvOIDCCorrelationClaim overrides which token claim is matched against a
+	// midPoint user (default preferred_username). EnvOIDCCorrelationAttribute
+	// overrides the midPoint attribute it is matched against (default name).
+	EnvOIDCCorrelationClaim     = "MIDPOINT_MCP_OIDC_CORRELATION_CLAIM"
+	EnvOIDCCorrelationAttribute = "MIDPOINT_MCP_OIDC_CORRELATION_ATTRIBUTE"
 )
 
 // Config holds everything needed to reach a midPoint deployment.
@@ -45,6 +50,13 @@ type Config struct {
 	// mapped to a midPoint user (see PLAN.md M4.5). Both must be set together.
 	OIDCIssuer   string
 	OIDCAudience string
+
+	// OIDCCorrelationClaim and OIDCCorrelationAttribute customize how a validated
+	// token maps to a midPoint user in resource-server mode. Empty values keep the
+	// defaults (preferred_username → name); the subject → externalId match always
+	// runs first regardless. Inert outside resource-server mode.
+	OIDCCorrelationClaim     string
+	OIDCCorrelationAttribute string
 }
 
 // ResourceServerMode reports whether OIDC bearer-token auth is configured.
@@ -57,13 +69,15 @@ func (c Config) ResourceServerMode() bool {
 // value is never included in the error.
 func ConfigFromEnv() (Config, error) {
 	cfg := Config{
-		BaseURL:      strings.TrimSpace(os.Getenv(EnvURL)),
-		Username:     strings.TrimSpace(os.Getenv(EnvUsername)),
-		Password:     os.Getenv(EnvPassword),
-		InsecureTLS:  strings.EqualFold(strings.TrimSpace(os.Getenv(EnvInsecureTLS)), "true"),
-		AllowWrites:  strings.EqualFold(strings.TrimSpace(os.Getenv(EnvAllowWrites)), "true"),
-		OIDCIssuer:   strings.TrimSpace(os.Getenv(EnvOIDCIssuer)),
-		OIDCAudience: strings.TrimSpace(os.Getenv(EnvOIDCAudience)),
+		BaseURL:                  strings.TrimSpace(os.Getenv(EnvURL)),
+		Username:                 strings.TrimSpace(os.Getenv(EnvUsername)),
+		Password:                 os.Getenv(EnvPassword),
+		InsecureTLS:              strings.EqualFold(strings.TrimSpace(os.Getenv(EnvInsecureTLS)), "true"),
+		AllowWrites:              strings.EqualFold(strings.TrimSpace(os.Getenv(EnvAllowWrites)), "true"),
+		OIDCIssuer:               strings.TrimSpace(os.Getenv(EnvOIDCIssuer)),
+		OIDCAudience:             strings.TrimSpace(os.Getenv(EnvOIDCAudience)),
+		OIDCCorrelationClaim:     strings.TrimSpace(os.Getenv(EnvOIDCCorrelationClaim)),
+		OIDCCorrelationAttribute: strings.TrimSpace(os.Getenv(EnvOIDCCorrelationAttribute)),
 	}
 
 	var missing []string
@@ -86,5 +100,45 @@ func ConfigFromEnv() (Config, error) {
 		return Config{}, fmt.Errorf("%s and %s must be set together", EnvOIDCIssuer, EnvOIDCAudience)
 	}
 
+	// The correlation attribute is interpolated into a query filter, so reject
+	// anything that is not a plain midPoint path before it can reach the query.
+	if cfg.OIDCCorrelationAttribute != "" && !ValidCorrelationAttribute(cfg.OIDCCorrelationAttribute) {
+		return Config{}, fmt.Errorf("%s %q is not a valid midPoint attribute path (letters, digits, and '/' only)",
+			EnvOIDCCorrelationAttribute, cfg.OIDCCorrelationAttribute)
+	}
+
 	return cfg, nil
+}
+
+// ValidCorrelationAttribute reports whether s is a safe midPoint attribute path
+// to interpolate into a query filter: a letter-led name of letters, digits, and
+// '/' segments (e.g. name, emailAddress, employeeNumber, extension/badgeId). This
+// keeps a misconfigured value from breaking out of the filter.
+func ValidCorrelationAttribute(s string) bool {
+	if s == "" {
+		return false
+	}
+	if !isAsciiLetter(rune(s[0])) {
+		return false
+	}
+	prev := byte('a')
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		switch {
+		case isAsciiLetter(rune(ch)) || (ch >= '0' && ch <= '9'):
+		case ch == '/':
+			// No leading, trailing, or doubled separators.
+			if prev == '/' || i == len(s)-1 {
+				return false
+			}
+		default:
+			return false
+		}
+		prev = ch
+	}
+	return true
+}
+
+func isAsciiLetter(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 }

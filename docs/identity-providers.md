@@ -90,17 +90,17 @@ How you arrange that is provider-specific:
 ## Requirement 2 — correlation: which midPoint user is this?
 
 Identity comes only from the validated token, never from a tool argument. The
-server maps the token to a midPoint user with two **standard OIDC claims**, in
-order:
+server maps the token to a midPoint user in two steps:
 
-| Token claim | matched against midPoint field |
-| --- | --- |
-| `sub` | user `externalId` (tried first) |
-| `preferred_username` | user `name` (fallback) |
+| Step | Token claim | matched against midPoint field |
+| --- | --- | --- |
+| 1 (always) | `sub` | user `externalId` |
+| 2 (fallback, configurable) | `preferred_username` *(default)* | user `name` *(default)* |
 
-**You do not add a custom "midPoint username" claim** — the server does not read
-one. Instead, make sure one of the two standard claims lines up with a field on
-the midPoint user. Two good strategies:
+The `sub` → `externalId` step always runs first. Step 2 is the fallback and is
+**configurable** — see below.
+
+Two good strategies with the defaults:
 
 - **Name match (simplest).** If the provider's `preferred_username` equals the
   midPoint user's `name`, correlation just works. Common when midPoint usernames
@@ -109,11 +109,36 @@ the midPoint user. Two good strategies:
   `externalId` with a **stable** identifier from the provider, so correlation
   survives a username change.
 
-If neither identifier can be made to line up, you can remap a value into
-`preferred_username` in the provider — but a *differently-named* custom claim
-(e.g. `midpoint_username`) will not help today, because the server reads only
-`preferred_username`/`sub`. Supporting an arbitrary correlation-claim name would
-be a small server enhancement, not something the provider can solve alone.
+### Configuring the fallback claim and attribute
+
+If neither default lines up — the provider can't emit a matching
+`preferred_username`, or the value you want to correlate on lives in a different
+claim (a custom claim, `email`, an employee number, …) — point the fallback at any
+claim and any midPoint attribute:
+
+| Variable | Default | Example |
+| --- | --- | --- |
+| `MIDPOINT_MCP_OIDC_CORRELATION_CLAIM` | `preferred_username` | `email`, `employeeNumber`, `midpoint_username` |
+| `MIDPOINT_MCP_OIDC_CORRELATION_ATTRIBUTE` | `name` | `emailAddress`, `employeeNumber` |
+
+For example, to correlate the token's `email` claim against midPoint's
+`emailAddress`:
+
+```sh
+MIDPOINT_MCP_OIDC_CORRELATION_CLAIM=email
+MIDPOINT_MCP_OIDC_CORRELATION_ATTRIBUTE=emailAddress
+```
+
+Notes:
+
+- These replace **only** the fallback step; `sub` → `externalId` still runs first.
+- The claim value is coerced to a string (a numeric claim such as an employee
+  number matches midPoint's string value).
+- The attribute is interpolated into a midPoint query filter, so it must be a
+  plain path (letters, digits, and `/` — e.g. `emailAddress`,
+  `extension/badgeId`); anything else is rejected at startup.
+- The value must be **unique** — if two midPoint users match, the request is
+  refused rather than guessing.
 
 A token that validates but correlates to **no** midPoint user is refused — that is
 the correct outcome for a person who exists in the IdP but not in midPoint.
@@ -173,7 +198,10 @@ Entra gotchas:
 - **Correlation.** `preferred_username` is the UPN (e.g. `bob@contoso.com`); match
   it to midPoint `name`, or provision midPoint `externalId` from a stable Entra id.
   (Entra's `sub` is *pairwise* — unique per application — so if you correlate on
-  `sub` → `externalId` you must store the value this app sees.)
+  `sub` → `externalId` you must store the value this app sees. Entra's `oid` claim
+  is the immutable, cross-application object id; to correlate on it set
+  `MIDPOINT_MCP_OIDC_CORRELATION_CLAIM=oid` against whatever midPoint attribute
+  holds it — see [Requirement 2](#requirement-2--correlation-which-midpoint-user-is-this).)
 
 ### Keycloak
 

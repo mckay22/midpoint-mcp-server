@@ -39,6 +39,7 @@ func TestCorrelateUser(t *testing.T) {
 	tests := []struct {
 		name              string
 		subject, username string
+		attribute         string // "" = default (name)
 		respond           func(filter string) (int, string)
 		wantOID           string
 		wantErr           bool
@@ -84,6 +85,17 @@ func TestCorrelateUser(t *testing.T) {
 			wantOID: "oid-ext",
 		},
 		{
+			// A custom attribute must be used verbatim in the fallback filter.
+			name: "custom attribute (emailAddress)", subject: "", username: "jane@example.com", attribute: "emailAddress",
+			respond: func(f string) (int, string) {
+				if strings.Contains(f, `emailAddress = "jane@example.com"`) {
+					return 200, one("oid-email")
+				}
+				return 200, empty
+			},
+			wantOID: "oid-email",
+		},
+		{
 			name: "no match anywhere", subject: "sub-1", username: "jdoe",
 			respond: func(string) (int, string) { return 200, empty },
 			wantErr: true,
@@ -98,7 +110,7 @@ func TestCorrelateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newSearchClient(t, tt.respond)
-			got, err := c.CorrelateUser(context.Background(), tt.subject, tt.username)
+			got, err := c.CorrelateUser(context.Background(), tt.subject, tt.username, tt.attribute)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("CorrelateUser = %q, want error", got)
