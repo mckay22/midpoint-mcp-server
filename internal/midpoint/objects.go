@@ -148,6 +148,27 @@ type userJSON struct {
 	Activation        *activation `json:"activation"`
 	Assignment        flexSlice   `json:"assignment"`
 	RoleMembershipRef flexSlice   `json:"roleMembershipRef"`
+	ParentOrgRef      flexSlice   `json:"parentOrgRef"`
+}
+
+// orgRef is one parentOrgRef entry: the org OID and the relation to it (member
+// vs manager). midPoint renders the relation as a prefixed QName (e.g.
+// "org:manager"); callers compare via its local part.
+type orgRef struct {
+	OID      string `json:"oid"`
+	Relation string `json:"relation"`
+}
+
+// parentOrgs decodes the user's parentOrgRef entries (tolerating single/array).
+func (u userJSON) parentOrgs() []orgRef {
+	out := make([]orgRef, 0, len(u.ParentOrgRef))
+	for _, raw := range u.ParentOrgRef {
+		var r orgRef
+		if json.Unmarshal(raw, &r) == nil && r.OID != "" {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func (u userJSON) summary() UserSummary {

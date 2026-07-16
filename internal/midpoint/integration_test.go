@@ -225,6 +225,35 @@ func TestIntegrationListRequestableRoles(t *testing.T) {
 	t.Logf("list_requestable_roles returned %d role(s)", len(roles))
 }
 
+// TestIntegrationTeam exercises the manager/team queries live. A clean instance
+// may have no org structure, so it asserts the calls succeed and any results
+// decode with populated fields — not a count. It also proves the relation-scoped
+// parentOrgRef query shape is accepted by midPoint.
+func TestIntegrationTeam(t *testing.T) {
+	cfg, err := ConfigFromEnv()
+	if err != nil {
+		t.Skipf("skipping live integration test: %v", err)
+	}
+	c := NewClient(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	team, err := c.ListMyTeam(ctx, 50)
+	if err != nil {
+		t.Fatalf("ListMyTeam: %v", err)
+	}
+	managers, err := c.ListMyManagers(ctx, 50)
+	if err != nil {
+		t.Fatalf("ListMyManagers: %v", err)
+	}
+	for _, u := range append(append([]UserSummary{}, team...), managers...) {
+		if u.OID == "" || u.Name == "" {
+			t.Errorf("team/manager result has empty oid/name: %+v", u)
+		}
+	}
+	t.Logf("list_my_team=%d, list_my_managers=%d", len(team), len(managers))
+}
+
 // TestIntegrationSearchObjects exercises the generic object search live.
 func TestIntegrationSearchObjects(t *testing.T) {
 	cfg, err := ConfigFromEnv()

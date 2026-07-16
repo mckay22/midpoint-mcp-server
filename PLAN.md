@@ -114,6 +114,42 @@ product-neutral (midPoint + MCP only; no downstream deployment stories).
     does **not** work under resource-server (#proxy) impersonation. Plumbing +
     parsing are unit-tested; a live integration test asserts records parse.
   - No local read-model built — ephemeral, per the design decision above.
+- **M6 — manager & team self-service**: the self-service loop (M3) plus the
+  manager dimension — act for the people you manage, not just yourself. midPoint
+  models management through org structure: a manager is a user assigned to an
+  OrgType with the `manager` relation; their reports are that org's members
+  (`getManagers`/`getMembers`/`isManagerOf` confirmed on MidpointFunctions, but
+  those are script-path — the tools use REST `parentOrgRef matches (oid = … and
+  relation = …)` queries so they run under resource-server impersonation and are
+  scoped by the manager's own authorizations). Everything executes AS the caller;
+  we never build a parallel permission model, midPoint enforces who may see/act
+  for whom.
+  - `list_my_team` — the caller's direct reports: members (default relation) of
+    the orgs the caller manages (`parentOrgRef` with the `manager` relation).
+    Empty for a non-manager. Read-only.
+  - `list_my_managers` — who the caller reports to: the managers of the orgs the
+    caller is a member of. Read-only.
+  - Request a role **for a report**: `request_role` already accepts a target
+    `userOid`; extend `list_requestable_roles` with an optional target user so a
+    manager can see and request what a report is eligible for. Respects the write
+    gate; midPoint's approval policy still applies.
+  - View a report's access: the existing `get_user_assignments` (by OID from
+    `list_my_team`) — documented as the manager flow, not new code.
+  - Approvals already exist (`list_work_items`, `approve_work_item`,
+    `reject_work_item`) — the manager's inbox is the same tools.
+  - Exact relation-scoped query shapes verified against midPoint 4.10 during
+    implementation (relation filters confirmed valid 2026-07-16); a live manager→
+    report fixture is needed to demo end to end (the eval orgs ship empty).
+  AC against a live midPoint: a manager lists their reports, views a report's
+  access, requests a role for that report, and the request routes to the correct
+  approver.
+- **M7 (sketch) — delegation & deputy**: hand your work items / access to a
+  deputy while away (midPoint's `deputy` relation); list/create/revoke
+  delegations. Needs live shape verification.
+- **M8 (sketch) — access review / certification**: managers attest to reports'
+  access (the built-in `Reviewer` role + certification campaigns).
+- **M9 (sketch) — governance reports**: SoD conflicts, orphaned accounts, stale
+  access, over-privileged users — composed over `search_objects`.
 
 ## Identity model (who is the caller?)
 

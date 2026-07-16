@@ -6,6 +6,25 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+### Added
+
+- **M6 (in progress) — manager & team self-service.** First slice: the team
+  discovery primitives.
+  - `list_my_team` — the caller's direct reports: members (default relation) of
+    the orgs the caller manages (`parentOrgRef` with the `manager` relation).
+    Empty for a non-manager; the caller is excluded from their own team.
+  - `list_my_managers` — who the caller reports to: managers of the orgs the
+    caller belongs to.
+  Both are read-only and, in resource-server mode, run as the caller so midPoint
+  scopes results to what that manager may see (no parallel permission model). They
+  use REST `parentOrgRef matches (oid = … and relation = …)` queries (relation
+  filters verified valid against 4.10) rather than the script-path
+  `getManagers`/`getMembers`, so they work under OIDC impersonation. Unit-tested;
+  a live integration test confirms the query shape (the eval orgs ship empty, so
+  results are 0 until a manager→report structure exists). Requesting a role *for*
+  a report (extending `list_requestable_roles` with a target user) is the next M6
+  slice; `request_role` already accepts a target `userOid`.
+
 ## [0.3.0] - 2026-07-16
 
 Self-service role catalog, a working audit search, and configurable OIDC

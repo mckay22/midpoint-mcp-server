@@ -191,6 +191,14 @@ and the approval actions respect the write gate):
 - `get_case` — a case and its work items
 - `approve_work_item` / `reject_work_item` — decide a work item
 
+Manager & team (**implemented**, read-only; run as the caller, so midPoint scopes
+them to what that manager may see):
+
+- `list_my_team` — your direct reports: members of the orgs you manage (empty if
+  you manage none). Pair with `get_user_assignments` to review a report's access,
+  or `request_role` (which accepts a target user) to request access for them
+- `list_my_managers` — who you report to: the managers of the orgs you belong to
+
 Reporting (**implemented**, read-only):
 
 - `search_objects` — filtered search across users/roles/orgs/services/shadows/
