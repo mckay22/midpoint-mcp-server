@@ -128,6 +128,52 @@ func (c *Client) ListRequestableRoles(ctx context.Context, limit int) ([]RoleSum
 	return c.listRoles(ctx, "requestable = true", limit)
 }
 
+// ListRequestableRolesFor is ListRequestableRoles narrowed to what is actionable
+// for a target user: the requestable roles that user does not already hold, so a
+// manager can see what to request FOR a report (then request_role with the same
+// target). An empty targetOID returns the caller's own requestable roles. Reading
+// the target's memberships runs as the caller, so midPoint enforces that the
+// caller may see the target.
+func (c *Client) ListRequestableRolesFor(ctx context.Context, targetOID string, limit int) ([]RoleSummary, error) {
+	roles, err := c.ListRequestableRoles(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	if targetOID == "" {
+		return roles, nil
+	}
+	held, err := c.heldRoleOIDs(ctx, targetOID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RoleSummary, 0, len(roles))
+	for _, r := range roles {
+		if !held[r.OID] {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+// heldRoleOIDs returns the set of role OIDs a user effectively holds, from the
+// computed roleMembershipRef.
+func (c *Client) heldRoleOIDs(ctx context.Context, userOID string) (map[string]bool, error) {
+	var u userJSON
+	if err := c.getObject(ctx, collUsers, userOID, false, &u); err != nil {
+		return nil, err
+	}
+	held := make(map[string]bool, len(u.RoleMembershipRef))
+	for _, raw := range u.RoleMembershipRef {
+		var ref struct {
+			OID string `json:"oid"`
+		}
+		if json.Unmarshal(raw, &ref) == nil && ref.OID != "" {
+			held[ref.OID] = true
+		}
+	}
+	return held, nil
+}
+
 // listRoles searches the role collection with an optional text filter (empty =
 // all) and returns compact summaries.
 func (c *Client) listRoles(ctx context.Context, filter string, limit int) ([]RoleSummary, error) {

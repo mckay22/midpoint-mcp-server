@@ -129,17 +129,25 @@ product-neutral (midPoint + MCP only; no downstream deployment stories).
     Empty for a non-manager. Read-only.
   - `list_my_managers` — who the caller reports to: the managers of the orgs the
     caller is a member of. Read-only.
-  - Request a role **for a report**: `request_role` already accepts a target
-    `userOid`; extend `list_requestable_roles` with an optional target user so a
-    manager can see and request what a report is eligible for. Respects the write
-    gate; midPoint's approval policy still applies.
+  - Request a role **for a report** (done): `request_role` already accepts a
+    target `userOid`; `list_requestable_roles` gained an optional `forUser` that
+    returns the requestable roles that report does not already hold (reads the
+    target's `roleMembershipRef`, as the caller). Respects the write gate;
+    midPoint's approval policy still applies.
   - View a report's access: the existing `get_user_assignments` (by OID from
     `list_my_team`) — documented as the manager flow, not new code.
   - Approvals already exist (`list_work_items`, `approve_work_item`,
     `reject_work_item`) — the manager's inbox is the same tools.
-  - Exact relation-scoped query shapes verified against midPoint 4.10 during
-    implementation (relation filters confirmed valid 2026-07-16); a live manager→
-    report fixture is needed to demo end to end (the eval orgs ship empty).
+
+  **Verified live 2026-07-16** with a manager→report fixture: `list_my_team`
+  returns real reports and `list_requestable_roles?forUser=` excludes roles the
+  report already holds. **Deployment requirement discovered:** a non-superuser
+  manager only sees reports if granted **read authorization over them** — the
+  `manager` org relation alone is not enough (an org manager's search returned
+  only themselves). midPoint's standard fix is an authorization whose object
+  selector uses `orgRelation` with `subjectRelation = manager`; provisioning that
+  is the deployment's IAM decision, so the tools stay agnostic and simply run as
+  the caller. Relation-scoped `parentOrgRef` query shapes confirmed valid on 4.10.
   AC against a live midPoint: a manager lists their reports, views a report's
   access, requests a role for that report, and the request routes to the correct
   approver.

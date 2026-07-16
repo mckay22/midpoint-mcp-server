@@ -19,11 +19,20 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
   scopes results to what that manager may see (no parallel permission model). They
   use REST `parentOrgRef matches (oid = … and relation = …)` queries (relation
   filters verified valid against 4.10) rather than the script-path
-  `getManagers`/`getMembers`, so they work under OIDC impersonation. Unit-tested;
-  a live integration test confirms the query shape (the eval orgs ship empty, so
-  results are 0 until a manager→report structure exists). Requesting a role *for*
-  a report (extending `list_requestable_roles` with a target user) is the next M6
-  slice; `request_role` already accepts a target `userOid`.
+  `getManagers`/`getMembers`, so they work under OIDC impersonation.
+  - `list_requestable_roles` gained an optional **`forUser`** — pass a report's
+    OID (from `list_my_team`) to get the requestable roles that report does not
+    already hold (reads their `roleMembershipRef`), so a manager can request one
+    *for* them via `request_role` (which already accepts a target `userOid`). The
+    manager loop is: `list_my_team` → `list_requestable_roles?forUser=` →
+    `request_role`.
+
+  Unit-tested; verified live with a manager→report fixture (`list_my_team` returns
+  real reports; `forUser` excludes already-held roles). **Deployment note:** a
+  non-superuser manager needs read authorization over their reports for
+  `list_my_team` to return anyone — the `manager` org relation alone is not
+  enough. midPoint's pattern is an `orgRelation` authorization
+  (`subjectRelation = manager`); the tools stay agnostic and run as the caller.
 
 ## [0.3.0] - 2026-07-16
 

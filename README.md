@@ -183,7 +183,9 @@ and the approval actions respect the write gate):
 
 - `list_requestable_roles` — the roles you can request: those flagged
   `requestable` in the catalog, filtered to what you're authorized to see (runs
-  as you, so it works per-user in resource-server mode)
+  as you, so it works per-user in resource-server mode). Pass `forUser` (a report's
+  OID from `list_my_team`) to list what that report can be given but doesn't
+  already hold — then `request_role` for them
 - `request_role` — self-service role request (routed through midPoint's approval
   policy when one applies)
 - `list_my_requests` — approval cases you initiated
@@ -196,8 +198,15 @@ them to what that manager may see):
 
 - `list_my_team` — your direct reports: members of the orgs you manage (empty if
   you manage none). Pair with `get_user_assignments` to review a report's access,
-  or `request_role` (which accepts a target user) to request access for them
+  `list_requestable_roles?forUser=` to see what they can be given, and
+  `request_role` (which accepts a target user) to request it for them
 - `list_my_managers` — who you report to: the managers of the orgs you belong to
+
+> Manager tools run as the caller, so a **non-superuser manager needs read
+> authorization over their reports** for `list_my_team` to return anyone — being an
+> org `manager` is not sufficient by itself. midPoint's standard pattern is an
+> authorization whose object selector uses `orgRelation` with
+> `subjectRelation = manager` (see docs).
 
 Reporting (**implemented**, read-only):
 

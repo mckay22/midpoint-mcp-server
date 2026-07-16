@@ -23,25 +23,36 @@ func registerRequestTools(server *mcp.Server, client *midpoint.Client, allowWrit
 
 // --- list_requestable_roles ---
 
+type listRequestableRolesInput struct {
+	Limit   int    `json:"limit,omitempty" jsonschema:"maximum results, default 20, max 100"`
+	ForUser string `json:"forUser,omitempty" jsonschema:"OID of a user to list requestable roles FOR — e.g. a direct report from list_my_team; returns roles they do not already hold, so you can request one for them. Omit to list your own."`
+}
+
 type listRequestableRolesOutput struct {
-	Roles []midpoint.RoleSummary `json:"roles"`
-	Count int                    `json:"count"`
+	Roles   []midpoint.RoleSummary `json:"roles"`
+	Count   int                    `json:"count"`
+	ForUser string                 `json:"forUser,omitempty"`
 }
 
 func registerListRequestableRoles(server *mcp.Server, client *midpoint.Client) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:  "list_requestable_roles",
 		Title: "List requestable roles",
-		Description: "List the roles the authenticated user can request (self-service): roles flagged " +
-			"requestable in midPoint's catalog, filtered to what that user is authorized to see. Pair with " +
-			"request_role to submit one, then list_my_requests / list_work_items to track approval.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in limitInput) (*mcp.CallToolResult, listRequestableRolesOutput, error) {
-		roles, err := client.ListRequestableRoles(ctx, in.Limit)
+		Description: "List requestable roles (self-service, or for a report via forUser): roles flagged " +
+			"requestable in midPoint's catalog, filtered to what the caller is authorized to see. With forUser, " +
+			"returns roles that report does not already hold. Pair with request_role (which accepts the same target " +
+			"user) to submit one, then list_my_requests / list_work_items to track approval.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in listRequestableRolesInput) (*mcp.CallToolResult, listRequestableRolesOutput, error) {
+		target := strings.TrimSpace(in.ForUser)
+		roles, err := client.ListRequestableRolesFor(ctx, target, in.Limit)
 		if err != nil {
 			return nil, listRequestableRolesOutput{}, err
 		}
-		return text(fmt.Sprintf("Found %d requestable role(s).", len(roles))),
-			listRequestableRolesOutput{Roles: roles, Count: len(roles)}, nil
+		msg := fmt.Sprintf("Found %d requestable role(s).", len(roles))
+		if target != "" {
+			msg = fmt.Sprintf("Found %d role(s) you can request for user %s.", len(roles), target)
+		}
+		return text(msg), listRequestableRolesOutput{Roles: roles, Count: len(roles), ForUser: target}, nil
 	})
 }
 
