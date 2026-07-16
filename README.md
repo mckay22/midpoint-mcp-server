@@ -204,9 +204,16 @@ them to what that manager may see):
 
 > Manager tools run as the caller, so a **non-superuser manager needs read
 > authorization over their reports** for `list_my_team` to return anyone — being an
-> org `manager` is not sufficient by itself. midPoint's standard pattern is an
-> authorization whose object selector uses `orgRelation` with
-> `subjectRelation = manager` (see docs).
+> org `manager` is not sufficient by itself. Grant it with a role whose read
+> authorization is scoped by `orgRelation` (verified against 4.10):
+>
+> ```jsonc
+> // Role authorization: read the users in orgs where I am the manager.
+> { "action": ["…/authorization-model-3#read"],
+>   "object": [{ "type": "UserType",
+>                "orgRelation": { "subjectRelation": "org:manager",
+>                                 "scope": "allDescendants" } }] }
+> ```
 
 Reporting (**implemented**, read-only):
 
