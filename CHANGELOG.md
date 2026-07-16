@@ -6,6 +6,14 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-16
+
+Self-service role catalog, a working audit search, and configurable OIDC
+correlation, plus an identity-provider setup guide. Resource-server mode (M4.5)
+was also verified live end to end against real Keycloak + midPoint 4.10.3 (no
+token → refused; IdP-only user → refused; mapped user impersonated via
+`Switch-To-Principal`).
+
 ### Added
 
 - **Configurable OIDC correlation** — two new env vars,
