@@ -153,6 +153,13 @@ midpoint-mcp-server --http 0.0.0.0:3001
 Identity always comes from the validated token — there is no on-behalf-of tool
 argument a caller could use to act as someone else.
 
+**Setting up an identity provider** (Entra ID, Keycloak, Okta, Auth0, …) — how to
+configure the audience, correlate tokens to midPoint users, and grant the service
+account its `#proxy` authorization — is covered in
+[docs/identity-providers.md](docs/identity-providers.md). The short version: the
+server is a *resource server*, so it needs **no client secret** — only the issuer
+and audience.
+
 ## Tools
 
 Read (default, **implemented**):

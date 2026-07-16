@@ -8,6 +8,12 @@ follows [Keep a Changelog](https://keepachangelog.com/); milestones map to
 
 ### Added
 
+- **Docs: `docs/identity-providers.md`** — a provider-agnostic guide to
+  resource-server mode: the resource-server model (why the server needs no client
+  secret), the audience requirement, token→midPoint correlation, the service
+  account's `#proxy` authorization, and step-by-step walkthroughs for Microsoft
+  Entra ID, Keycloak, and generic OIDC, plus a troubleshooting table. Linked from
+  the README.
 - **`list_requestable_roles`** — self-service catalog query: the roles the
   authenticated user can request. Searches roles flagged `requestable = true`,
   executed as the calling identity, so in resource-server mode midPoint filters
